@@ -2,8 +2,8 @@
 export const prerender = false;
 
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
-import ServerTable from "../../components/ServerTable.astro";
 import DateFilter from "../../components/DateFilter.astro";
+import { PremiumTable } from "../../components/tables/PremiumTable";
 import { db, type DateRange } from "../../lib/db";
 
 // Helper to get start of day in IST as Unix timestamp
@@ -45,6 +45,7 @@ const pageSize = Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageS
 const sort = url.searchParams.get('sort') || 'updated_at';
 const order = (url.searchParams.get('order') as 'asc' | 'desc') || 'desc';
 const search = url.searchParams.get('search') || '';
+const statusFilter = url.searchParams.get('status') || 'all'; // all, active, cancelled
 
 // Build query
 const conditions: string[] = ["user_type = 'premium_user'"];
@@ -69,71 +70,40 @@ const countResult = await db.execute({
   args
 });
 const total = countResult.rows[0].count as number;
-const totalPages = Math.ceil(total / pageSize);
 
 // Validate sort column
 const validSortColumns = ['device_id', 'device_name', 'created_at', 'updated_at', 'images_limit'];
 const sortColumn = validSortColumns.includes(sort) ? sort : 'updated_at';
 const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
 
-// Fetch paginated data
+// Fetch paginated data - NO subscription fetch blocking here!
 const offset = (page - 1) * pageSize;
 const result = await db.execute({
   sql: `SELECT * FROM devices WHERE ${conditions.join(' AND ')} ORDER BY ${sortColumn} ${sortOrder} LIMIT ? OFFSET ?`,
   args: [...args, pageSize, offset]
 });
 
-const premiumUsers = result.rows as any[];
+const premiumUsers = result.rows.map((row: any) => ({
+  device_id: row.device_id,
+  device_name: row.device_name,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+}));
 
-// Column definitions
-const columns = [
-  {
-    key: 'device_id',
-    label: 'Device ID',
-    sortable: true,
-    render: (value: string) => `
-      <a href="/devices/${value}" class="font-mono text-xs hover:underline text-blue-600 whitespace-nowrap">${value}</a>
-    `
-  },
-  {
-    key: 'device_name',
-    label: 'Device Name',
-    sortable: true,
-    render: (value: string | null) => value 
-      ? `<span class="text-sm font-medium">${value}</span>` 
-      : `<span class="text-muted-foreground text-xs">Unnamed</span>`
-  },
-  {
-    key: 'images_limit',
-    label: 'Images Limit',
-    sortable: true,
-    render: (value: number) => `<span class="text-sm font-semibold">${value.toLocaleString()}</span>`
-  },
-  {
-    key: 'created_at',
-    label: 'Created',
-    sortable: true,
-    render: (value: number) => {
-      const date = new Date(value * 1000);
-      return `
-        <p class="text-sm">${date.toLocaleDateString('en-IN', { dateStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
-        <p class="text-xs text-muted-foreground">${date.toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
-      `;
-    }
-  },
-  {
-    key: 'updated_at',
-    label: 'Last Active',
-    sortable: true,
-    render: (value: number) => {
-      const date = new Date(value * 1000);
-      return `
-        <p class="text-sm">${date.toLocaleDateString('en-IN', { dateStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
-        <p class="text-xs text-muted-foreground">${date.toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
-      `;
-    }
-  }
-];
+const totalPages = Math.ceil(total / pageSize);
+
+// Build URL for status filter
+function buildStatusUrl(status: string): string {
+  const params = new URLSearchParams();
+  if (status !== 'all') params.set('status', status);
+  if (dateRange !== 'all') params.set('range', dateRange);
+  if (sort !== 'updated_at') params.set('sort', sort);
+  if (order !== 'desc') params.set('order', order);
+  if (search) params.set('search', search);
+  if (pageSize !== 100) params.set('pageSize', pageSize.toString());
+  const queryString = params.toString();
+  return `/premium${queryString ? '?' + queryString : ''}`;
+}
 ---
 
 <DashboardLayout title="Premium Users" activePage="premium">
@@ -148,20 +118,62 @@ const columns = [
         </div>
         <div>
           <h1 class="text-xl font-bold">Premium Users</h1>
-          <p class="text-sm text-muted-foreground">{total.toLocaleString()} premium users</p>
+          <p class="text-sm text-muted-foreground">
+            {total.toLocaleString()} premium users
+          </p>
         </div>
       </div>
       <DateFilter 
         baseUrl="/premium" 
         currentRange={dateRange}
-        preserveParams={{ sort, order, search, pageSize: pageSize.toString() }}
+        preserveParams={{ sort, order, search, pageSize: pageSize.toString(), status: statusFilter }}
       />
     </div>
 
-    <!-- Server-Side Table -->
-    <ServerTable 
-      data={premiumUsers}
-      columns={columns}
+    <!-- Subscription Status Filter -->
+    <div class="flex items-center gap-2">
+      <span class="text-sm text-muted-foreground">Subscription:</span>
+      <div class="flex gap-1">
+        <a 
+          href={buildStatusUrl('all')}
+          class:list={[
+            "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+            statusFilter === 'all' 
+              ? "bg-foreground text-background border-foreground" 
+              : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+          ]}
+        >
+          All
+        </a>
+        <a 
+          href={buildStatusUrl('active')}
+          class:list={[
+            "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+            statusFilter === 'active' 
+              ? "bg-emerald-600 text-white border-emerald-600" 
+              : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
+          ]}
+        >
+          Active
+        </a>
+        <a 
+          href={buildStatusUrl('cancelled')}
+          class:list={[
+            "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+            statusFilter === 'cancelled' 
+              ? "bg-red-600 text-white border-red-600" 
+              : "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20"
+          ]}
+        >
+          Cancelled
+        </a>
+      </div>
+    </div>
+
+    <!-- React Table with Client-Side Subscription Loading -->
+    <PremiumTable 
+      client:load
+      users={premiumUsers}
       total={total}
       page={page}
       pageSize={pageSize}
@@ -170,8 +182,7 @@ const columns = [
       order={order}
       search={search}
       baseUrl="/premium"
-      searchPlaceholder="Search by device ID or name..."
+      statusFilter={statusFilter}
     />
   </div>
 </DashboardLayout>
-

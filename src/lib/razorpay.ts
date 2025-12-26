@@ -48,6 +48,31 @@ export interface PaymentWithDevice extends RazorpayPayment {
   } | null;
 }
 
+// Razorpay Subscription interface
+export interface RazorpaySubscription {
+  id: string;
+  entity: string;
+  plan_id: string;
+  status: 'created' | 'authenticated' | 'active' | 'pending' | 'halted' | 'cancelled' | 'completed' | 'expired' | 'paused';
+  current_start: number | null;
+  current_end: number | null;
+  ended_at: number | null;
+  quantity: number;
+  notes: {
+    device_id?: string;
+    [key: string]: string | undefined;
+  };
+  charge_at: number | null;
+  offer_id: string | null;
+  short_url: string;
+  has_scheduled_changes: boolean;
+  change_scheduled_at: number | null;
+  source: string;
+  payment_method: string;
+  created_at: number;
+  customer_id: string;
+}
+
 // Date range options (matching db.ts)
 export type DateRange = 'today' | '7days' | '14days' | '30days' | 'all';
 
@@ -337,5 +362,72 @@ export async function getDailyPaymentStats(days: number = 14): Promise<{
   }
 
   return results;
+}
+
+// Subscription cache
+let subscriptionsCache: { data: RazorpaySubscription[]; timestamp: number } | null = null;
+const SUBSCRIPTION_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+// Fetch all subscriptions from Razorpay
+export async function getAllSubscriptions(forceRefresh = false): Promise<RazorpaySubscription[]> {
+  const now = Date.now();
+  
+  if (!forceRefresh && subscriptionsCache && (now - subscriptionsCache.timestamp) < SUBSCRIPTION_CACHE_TTL) {
+    return subscriptionsCache.data;
+  }
+  
+  const allSubscriptions: RazorpaySubscription[] = [];
+  let skip = 0;
+  const batchSize = 100;
+  
+  while (true) {
+    try {
+      const response = await fetch(`https://api.razorpay.com/v1/subscriptions?count=${batchSize}&skip=${skip}`, {
+        headers: {
+          'Authorization': `Basic ${auth}`
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch subscriptions:', await response.text());
+        break;
+      }
+      
+      const data = await response.json();
+      const items = data.items || [];
+      allSubscriptions.push(...items);
+      
+      if (items.length < batchSize) break;
+      skip += batchSize;
+      if (skip >= 10000) break; // Safety limit
+    } catch (error) {
+      console.error('Error fetching subscriptions:', error);
+      break;
+    }
+  }
+  
+  // Update cache
+  subscriptionsCache = { data: allSubscriptions, timestamp: now };
+  
+  return allSubscriptions;
+}
+
+// Get subscription status map by device_id
+export async function getSubscriptionStatusByDevice(forceRefresh = false): Promise<Map<string, RazorpaySubscription>> {
+  const subscriptions = await getAllSubscriptions(forceRefresh);
+  const deviceSubscriptionMap = new Map<string, RazorpaySubscription>();
+  
+  // Group by device_id, keeping the most recent subscription for each device
+  for (const sub of subscriptions) {
+    const deviceId = sub.notes?.device_id;
+    if (!deviceId) continue;
+    
+    const existing = deviceSubscriptionMap.get(deviceId);
+    if (!existing || sub.created_at > existing.created_at) {
+      deviceSubscriptionMap.set(deviceId, sub);
+    }
+  }
+  
+  return deviceSubscriptionMap;
 }
 
