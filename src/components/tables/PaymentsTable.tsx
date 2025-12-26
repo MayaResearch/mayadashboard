@@ -103,15 +103,12 @@ const columns: ColumnDef<Payment>[] = [
     },
   },
   {
-    accessorKey: "email",
+    accessorKey: "contact",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Contact" />
+      <DataTableColumnHeader column={column} title="Phone" />
     ),
     cell: ({ row }) => (
-      <div>
-        <p className="text-sm">{row.original.email || "—"}</p>
-        <p className="text-xs text-muted-foreground">{row.original.contact || "—"}</p>
-      </div>
+      <p className="text-sm font-mono">{row.original.contact || "—"}</p>
     ),
   },
   {

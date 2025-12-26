@@ -148,7 +148,7 @@ const statusOptions: { label: string; value: PaymentStatus; color: string }[] = 
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Status</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Method</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Amount</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Contact</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Phone</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Date</th>
               </tr>
             </thead>
@@ -203,10 +203,8 @@ const statusOptions: { label: string; value: PaymentStatus; color: string }[] = 
                       </span>
                     </td>
                     <td class="px-4 py-3">
-                      {payment.email && payment.email !== 'user@maya.ai' ? (
-                        <p class="text-sm">{payment.email}</p>
-                      ) : payment.contact ? (
-                        <p class="text-sm">{payment.contact}</p>
+                      {payment.contact ? (
+                        <p class="text-sm font-mono">{payment.contact}</p>
                       ) : (
                         <span class="text-muted-foreground text-sm">-</span>
                       )}
