@@ -90,7 +90,9 @@ export function PaidFreeUsers() {
     else setLoading(true)
     
     try {
-      const res = await fetch('/api/paid-free-users')
+      // Use force refresh when manually refreshing to bypass cache
+      const url = isRefresh ? '/api/paid-free-users?refresh=true' : '/api/paid-free-users'
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setPayments(data)
@@ -133,7 +135,7 @@ export function PaidFreeUsers() {
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData(true) // Always fetch fresh data on mount
   }, [fetchData])
 
   if (loading) {

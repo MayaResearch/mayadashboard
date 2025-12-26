@@ -124,15 +124,20 @@ export async function getPayments(count = 50, skip = 0, fromTimestamp?: number):
 
 // Cache for all payments per date range (since we need client-side filtering for status)
 const paymentsCache = new Map<string, { payments: RazorpayPayment[]; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+// Clear the payments cache (call this when data changes)
+export function clearPaymentsCache(): void {
+  paymentsCache.clear();
+}
 
 // Fetch all payments for a date range (with caching)
-export async function getAllPayments(fromTimestamp?: number): Promise<RazorpayPayment[]> {
+export async function getAllPayments(fromTimestamp?: number, forceRefresh = false): Promise<RazorpayPayment[]> {
   const cacheKey = fromTimestamp?.toString() || 'all';
   const cached = paymentsCache.get(cacheKey);
   const now = Date.now();
   
-  if (cached && (now - cached.timestamp) < CACHE_TTL) {
+  if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
     return cached.payments;
   }
   
