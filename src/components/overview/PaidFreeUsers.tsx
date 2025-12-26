@@ -83,6 +83,7 @@ export function PaidFreeUsers() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [updatingDevices, setUpdatingDevices] = useState<Set<string>>(new Set())
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -102,6 +103,35 @@ export function PaidFreeUsers() {
     }
   }, [])
 
+  const markAsPremium = async (deviceId: string, paymentId: string) => {
+    setUpdatingDevices(prev => new Set(prev).add(paymentId))
+    
+    try {
+      const res = await fetch('/api/update-premium', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId })
+      })
+      
+      if (res.ok) {
+        // Remove the payment from the list
+        setPayments(prev => prev.filter(p => p.id !== paymentId))
+      } else {
+        const error = await res.json()
+        alert(`Failed to update: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to mark as premium:', error)
+      alert('Failed to update device')
+    } finally {
+      setUpdatingDevices(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(paymentId)
+        return newSet
+      })
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [fetchData])
@@ -115,49 +145,77 @@ export function PaidFreeUsers() {
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-amber-600">🔄 Paid Users Need to Move to Premium</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Users who paid but are still on free tier</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {payments.length} user{payments.length !== 1 ? 's' : ''} who paid but are still on free tier
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <RefreshButton onClick={() => fetchData(true)} loading={refreshing} />
-          <a href="/payments?status=captured" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            View all →
-          </a>
         </div>
       </div>
       {payments.length > 0 ? (
-        <div className="divide-y divide-border max-h-[400px] overflow-auto">
-          {payments.map((payment) => (
-            <div key={payment.id} className="p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
+        <div className="divide-y divide-border max-h-[600px] overflow-auto">
+          {payments.map((payment) => {
+            const isUpdating = updatingDevices.has(payment.id)
+            const hasDeviceId = !!payment.notes?.device_id
+            
+            return (
+              <div key={payment.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-semibold text-emerald-600">{formatAmount(payment.amount)}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-amber-500/10 text-amber-600 border-amber-500/20">
+                      Needs Upgrade
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-emerald-600">{formatAmount(payment.amount)}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-amber-500/10 text-amber-600 border-amber-500/20">
-                    Needs Upgrade
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
+                    {hasDeviceId && (
+                      <button
+                        onClick={() => markAsPremium(payment.notes!.device_id!, payment.id)}
+                        disabled={isUpdating}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                          "bg-emerald-600 text-white hover:bg-emerald-700",
+                          "disabled:opacity-50 disabled:cursor-not-allowed"
+                        )}
+                      >
+                        {isUpdating ? (
+                          <span className="flex items-center gap-1.5">
+                            <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Updating...
+                          </span>
+                        ) : (
+                          '✓ Mark Premium'
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
+                <div className="grid grid-cols-1 gap-1 text-xs pl-10">
+                  <div className="flex gap-2">
+                    <span className="text-muted-foreground w-20">Device ID:</span>
+                    {payment.notes?.device_id ? (
+                      <a href={`/devices/${payment.notes.device_id}`} className="font-mono hover:underline text-blue-600">{payment.notes.device_id}</a>
+                    ) : (
+                      <span className="text-red-500 font-medium">No device ID attached</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-muted-foreground w-20">Contact:</span>
+                    <span>{payment.email && payment.email !== 'user@maya.ai' ? payment.email : ''} {payment.contact || ''}</span>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 gap-1 text-xs pl-10">
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-20">Device ID:</span>
-                  {payment.notes?.device_id ? (
-                    <a href={`/devices/${payment.notes.device_id}`} className="font-mono hover:underline text-blue-600">{payment.notes.device_id}</a>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-20">Contact:</span>
-                  <span>{payment.email && payment.email !== 'user@maya.ai' ? payment.email : ''} {payment.contact || ''}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div className="p-8 text-center">

@@ -1,18 +1,18 @@
 import type { APIRoute } from 'astro';
 import { getDeviceUserTypes } from '../../lib/db';
-import { getPayments, IGNORED_CONTACTS } from '../../lib/razorpay';
+import { getAllPayments, IGNORED_CONTACTS } from '../../lib/razorpay';
 
 export const prerender = false;
 
 export const GET: APIRoute = async () => {
   try {
-    const [recentPayments, deviceUserTypes] = await Promise.all([
-      getPayments(100, 0),
+    const [allPayments, deviceUserTypes] = await Promise.all([
+      getAllPayments(),
       getDeviceUserTypes()
     ]);
 
     // Filter: Captured payments from FREE users (not premium), excluding ignored contacts
-    const paidFreeUsers = recentPayments.items
+    const paidFreeUsers = allPayments
       .filter(p => {
         if (p.status !== 'captured') return false;
         if (IGNORED_CONTACTS.includes(p.contact) || IGNORED_CONTACTS.includes(p.email)) return false;
@@ -20,8 +20,7 @@ export const GET: APIRoute = async () => {
         if (!deviceId) return true;
         const userType = deviceUserTypes.get(deviceId);
         return userType !== 'premium_user';
-      })
-      .slice(0, 10);
+      });
 
     return new Response(JSON.stringify(paidFreeUsers), {
       status: 200,

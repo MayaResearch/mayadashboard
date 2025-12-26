@@ -127,7 +127,7 @@ const paymentsCache = new Map<string, { payments: RazorpayPayment[]; timestamp: 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Fetch all payments for a date range (with caching)
-async function getAllPaymentsForRange(fromTimestamp?: number): Promise<RazorpayPayment[]> {
+export async function getAllPayments(fromTimestamp?: number): Promise<RazorpayPayment[]> {
   const cacheKey = fromTimestamp?.toString() || 'all';
   const cached = paymentsCache.get(cacheKey);
   const now = Date.now();
@@ -168,7 +168,7 @@ export async function getPaymentsPaginated(params: PaymentQueryParams = {}): Pro
   const statusFilter = params.status || 'all';
   
   // Fetch all payments for the date range
-  const allPayments = await getAllPaymentsForRange(fromTimestamp || undefined);
+  const allPayments = await getAllPayments(fromTimestamp || undefined);
   
   // Filter by status if needed
   const filteredPayments = statusFilter === 'all' 
@@ -293,7 +293,7 @@ export async function getDailyPaymentStats(days: number = 14): Promise<{
 }> {
   // Fetch all payments for the period
   const fromTimestamp = getStartOfDayIST(days);
-  const allPayments = await getAllPaymentsForRange(fromTimestamp);
+  const allPayments = await getAllPayments(fromTimestamp);
   
   // Filter out ignored contacts
   const validPayments = allPayments.filter(p => !isIgnoredContact(p));
