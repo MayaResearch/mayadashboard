@@ -1,0 +1,470 @@
+---
+title: Folder Structure Rules
+description: Strict folder organization rules for Maya Research Astro project
+tags: [structure, organization, architecture]
+alwaysApply: true
+---
+
+# Folder Structure Rules
+
+## Core Principle
+
+**Pages own their components.** Only truly shared/reusable components belong in the global components folder.
+
+## Directory Structure
+
+```
+project-root/
+├── astro.config.mjs
+├── components.json
+├── package.json
+├── tsconfig.json
+├── README.md
+│
+├── public/
+│   └── assets/
+│       └── images/
+│
+└── src/
+    ├── assets/
+    │   └── static-files/
+    │
+    ├── components/
+    │   ├── ui/                              # Base UI components (Shadcn)
+    │   │   ├── button.tsx
+    │   │   ├── input.tsx
+    │   │   ├── table.tsx
+    │   │   ├── form.tsx
+    │   │   ├── dialog.tsx
+    │   │   ├── card.tsx
+    │   │   └── ...
+    │   │
+    │   ├── GlobalTable/                     # Reusable table components
+    │   │   ├── DataTable.tsx
+    │   │   ├── DataTablePagination.tsx
+    │   │   ├── DataTableToolbar.tsx
+    │   │   ├── FilterDropDown.tsx
+    │   │   ├── DateRangePicker.tsx
+    │   │   └── index.tsx
+    │   │
+    │   ├── GlobalForm/                      # Reusable form components
+    │   │   ├── DynamicForm.tsx
+    │   │   ├── DynamicFormField.tsx
+    │   │   ├── formFields.ts
+    │   │   ├── validation.ts
+    │   │   └── index.tsx
+    │   │
+    │   ├── Graphs/                          # Chart components
+    │   │   ├── AreaGraph.tsx
+    │   │   ├── BarGraph.tsx
+    │   │   ├── PieGraph.tsx
+    │   │   └── index.tsx
+    │   │
+    │   ├── dashboard/                       # Dashboard-specific components
+    │   │   ├── DashboardHeader.tsx
+    │   │   └── DashboardSidebar.tsx
+    │   │
+    │   ├── ErrorScreen.tsx                  # Error handling component
+    │   ├── NoScreen.tsx                     # 404/Coming soon component
+    │   ├── StatsCard.tsx                    # Reusable stats card
+    │   ├── ErrorBoundary.tsx
+    │   └── ToastProvider.tsx
+    │
+    ├── hooks/
+    │   └── custom-hooks.ts                  # Custom React hooks
+    │
+    ├── layouts/
+    │   ├── Layout.astro                     # Base layout
+    │   └── DashboardLayout.astro            # Dashboard layout
+    │
+    ├── lib/
+    │   ├── supabase.ts                      # Database client
+    │   ├── database-schema.ts               # Database types
+    │   ├── utils.ts                         # General utilities
+    │   │
+    │   ├── types/                           # TypeScript definitions
+    │   │   ├── index.ts
+    │   │   └── feature-types.ts
+    │   │
+    │   ├── utils/                           # Utility functions
+    │   │   ├── auth.ts
+    │   │   ├── date-utils.ts
+    │   │   └── database-queries.ts
+    │   │
+    │   └── hooks/                           # Shared React hooks
+    │       ├── useSearch.ts
+    │       └── usePaginatedSearch.ts
+    │
+    ├── pages/
+    │   ├── index.astro                      # Landing page
+    │   │
+    │   ├── auth/
+    │   │   ├── _components/
+    │   │   │   └── LoginForm.tsx
+    │   │   └── login.astro
+    │   │
+    │   ├── admin/
+    │   │   ├── dashboard/
+    │   │   │   ├── _components/
+    │   │   │   │   └── DashboardScreen.tsx
+    │   │   │   └── index.astro
+    │   │   │
+    │   │   ├── feature-1/                   # First feature module
+    │   │   │   ├── _components/
+    │   │   │   │   ├── FeatureScreen.tsx
+    │   │   │   │   ├── FeatureStatsCards.tsx
+    │   │   │   │   ├── FeatureDetailsDialog.tsx
+    │   │   │   │   └── CreateFeatureForm.tsx
+    │   │   │   └── index.astro
+    │   │   │
+    │   │   ├── feature-2/                   # Second feature module
+    │   │   │   ├── _components/
+    │   │   │   │   ├── FeatureScreen.tsx
+    │   │   │   │   └── FeatureForm.tsx
+    │   │   │   ├── index.astro
+    │   │   │   └── [id].astro              # Dynamic route
+    │   │   │
+    │   │   ├── feature-3/                   # Third feature module
+    │   │   │   ├── _components/
+    │   │   │   │   ├── FeatureScreen.tsx
+    │   │   │   │   └── SubFeatureSection.tsx
+    │   │   │   ├── index.astro
+    │   │   │   └── [id]/
+    │   │   │       ├── _components/
+    │   │   │       │   └── DetailScreen.tsx
+    │   │   │       ├── index.astro
+    │   │   │       └── sub-page/
+    │   │   │           ├── _components/
+    │   │   │           │   └── SubPageScreen.tsx
+    │   │   │           └── index.astro
+    │   │   │
+    │   │   └── other-features/...
+    │   │
+    │   └── api/                             # API endpoints
+    │       ├── feature-1.ts
+    │       ├── feature-2.ts
+    │       │
+    │       ├── search/                      # Search API endpoints
+    │       │   ├── feature-1.ts
+    │       │   ├── feature-2.ts
+    │       │   └── feature-3.ts
+    │       │
+    │       └── resource/                    # Resource-specific endpoints
+    │           ├── [id]/
+    │           │   └── sub-resource.ts
+    │           └── collection.ts
+    │
+    └── styles/
+        └── global.css                       # Global styles
+
+        ```
+
+## Rules & Examples
+
+### ✅ Correct Usage
+
+#### Example 1: About Page with Specific Components
+
+```
+pages/
+└── about/
+    ├── index.astro          # Main about page
+    └── _components/
+        ├── AboutHero.astro  # Only used on about page
+        ├── TeamGrid.astro   # Only used on about page
+        └── Timeline.astro   # Only used on about page
+```
+
+```astro
+---
+// pages/about/index.astro
+import Layout from '@/layouts/Layout.astro';
+import AboutHero from './_components/AboutHero.astro';
+import TeamGrid from './_components/TeamGrid.astro';
+import Timeline from './_components/Timeline.astro';
+---
+
+<Layout>
+  <AboutHero />
+  <TeamGrid />
+  <Timeline />
+</Layout>
+```
+
+#### Example 2: Using Shared Components
+
+```astro
+---
+// pages/products/index.astro
+import Layout from '@/layouts/Layout.astro';
+import Button from '@/components/ui/Button.astro';  // ✅ Shared UI component
+import ProductCard from './_components/ProductCard.astro';  // ✅ Page-specific
+---
+
+<Layout>
+  <h1>Our Products</h1>
+  <div class="product-grid">
+    <ProductCard />
+  </div>
+  <Button>Load More</Button>
+</Layout>
+```
+
+#### Example 3: Simple Page (No Components Needed)
+
+```astro
+---
+// pages/index.astro
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout>
+  <div class="homepage-opening-section">
+    <header class="header">
+      <p class="logo-text">Maya Research</p>
+    </header>
+    <main class="main-content">
+      <!-- All page content here -->
+    </main>
+  </div>
+</Layout>
+
+<style>
+  /* Page-specific styles */
+</style>
+```
+
+### ❌ Incorrect Usage
+
+#### ❌ Don't: Create Component in Global Folder for Single Page
+
+```
+components/
+└── HomePage.astro  # ❌ WRONG! Only used once
+```
+
+Instead, put content directly in the page:
+```
+pages/
+└── index.astro  # ✅ Correct
+```
+
+#### ❌ Don't: Import from Other Page's _components
+
+```astro
+---
+// pages/products/index.astro
+import TeamGrid from '../about/_components/TeamGrid.astro';  // ❌ WRONG!
+---
+```
+
+If multiple pages need it, move it to global components:
+```
+components/
+└── common/
+    └── TeamGrid.astro  # ✅ Now it's shared
+```
+
+## Decision Tree: Where Does This Component Go?
+
+```
+Is this component used on multiple pages?
+│
+├─ YES → Put in /src/components/
+│         │
+│         ├─ Is it a UI primitive (Button, Input, Card)?
+│         │  └─ YES → /src/components/ui/
+│         │
+│         ├─ Is it a layout element (Header, Footer, Nav)?
+│         │  └─ YES → /src/components/layout/
+│         │
+│         └─ Otherwise → /src/components/common/
+│
+└─ NO → Put in /src/pages/[page-name]/_components/
+```
+
+## Common Patterns
+
+### Pattern 1: Homepage (Single Page, No Extra Components)
+
+```
+pages/
+└── index.astro  # Everything inline, no _components folder needed
+```
+
+### Pattern 2: Feature Page with Multiple Sections
+
+```
+pages/
+└── features/
+    ├── index.astro
+    └── _components/
+        ├── FeatureHero.astro
+        ├── FeatureList.astro
+        └── FeatureComparison.astro
+```
+
+### Pattern 3: Dynamic Routes
+
+```
+pages/
+└── blog/
+    ├── index.astro           # Blog listing page
+    ├── [slug].astro          # Individual blog post
+    └── _components/
+        ├── BlogCard.astro    # Used by index.astro
+        ├── BlogContent.astro # Used by [slug].astro
+        └── RelatedPosts.astro # Used by [slug].astro
+```
+
+### Pattern 4: Nested Routes
+
+```
+pages/
+└── dashboard/
+    ├── index.astro
+    ├── settings/
+    │   ├── index.astro
+    │   └── _components/
+    │       └── SettingsForm.astro
+    └── _components/
+        ├── DashboardNav.astro
+        └── StatsCard.astro
+```
+
+## Lib Folder Organization
+
+### API Services
+
+```typescript
+// lib/api/services/userService.ts
+export class UserService {
+  async getUser(id: string): Promise<User> {
+    // Implementation
+  }
+}
+
+export const userService = new UserService();
+```
+
+### Types
+
+```typescript
+// lib/types/user.types.ts
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type UserRole = 'admin' | 'user' | 'guest';
+```
+
+### Hooks (React Islands)
+
+```typescript
+// lib/hooks/useUser.ts
+import { useState, useEffect } from 'react';
+import type { User } from '@/lib/types/user.types';
+
+export function useUser(id: string) {
+  const [user, setUser] = useState<User | null>(null);
+  // Hook implementation
+  return user;
+}
+```
+
+### Utils
+
+```typescript
+// lib/utils/format.ts
+export function formatDate(date: Date): string {
+  return date.toLocaleDateString();
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+}
+```
+
+## Import Paths
+
+Use path aliases for cleaner imports (configure in `tsconfig.json`):
+
+```typescript
+// ✅ Good
+import Button from '@/components/ui/Button.astro';
+import { userService } from '@/lib/api/services/userService';
+import type { User } from '@/lib/types/user.types';
+import HeroSection from './_components/HeroSection.astro';
+
+// ❌ Avoid
+import Button from '../../../components/ui/Button.astro';
+import { userService } from '../../../lib/api/services/userService';
+```
+
+## File Naming Conventions
+
+### Components
+- **PascalCase**: `MyComponent.astro`, `UserProfile.astro`
+- **Descriptive names**: `ProductCard.astro` not `Card.astro`
+
+### Utilities & Services
+- **camelCase**: `userService.ts`, `formatUtils.ts`
+- **Descriptive names**: `productService.ts` not `service.ts`
+
+### Types
+- **camelCase with .types suffix**: `user.types.ts`, `product.types.ts`
+- **Interfaces in PascalCase**: `User`, `Product`
+
+### Pages
+- **lowercase with hyphens**: `about-us/`, `contact-us/`
+- **Dynamic routes**: `[slug].astro`, `[id].astro`
+
+## When to Create _components Folder
+
+✅ **Create _components when:**
+- You have 2+ components specific to that page
+- Components have substantial logic/markup (>30 lines)
+- You want to keep the main page file clean
+
+❌ **Don't create _components when:**
+- You only have 1 small component (keep it inline)
+- The component might be reused elsewhere (use global components)
+
+## Summary Checklist
+
+When creating a new component, ask:
+
+- [ ] Is this used on multiple pages? → `/src/components/`
+- [ ] Is this only used on one page? → `/src/pages/[page]/_components/`
+- [ ] Is this a UI primitive? → `/src/components/ui/`
+- [ ] Is this a layout element? → `/src/components/layout/`
+- [ ] Is this business logic? → `/src/lib/`
+- [ ] Is this a type definition? → `/src/lib/types/`
+- [ ] Is this an API service? → `/src/lib/api/services/`
+
+## Migration Guide
+
+If you have incorrectly placed components:
+
+1. **Identify** components in `/src/components/` that are only used once
+2. **Move** them to `/src/pages/[page]/_components/`
+3. **Update** import paths in the page files
+4. **Delete** the old component file
+
+Example:
+```bash
+# Before (incorrect)
+src/components/HomePage.astro
+
+# After (correct)
+src/pages/index.astro  # Content moved inline
+```
+
+---
+
+**Remember**: When in doubt, start with the page file. Only create separate components when you have a clear reason to do so.

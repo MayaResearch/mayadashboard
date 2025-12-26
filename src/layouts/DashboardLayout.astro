@@ -1,0 +1,104 @@
+---
+import "../global.css"
+
+interface Props {
+  title?: string;
+  activePage?: string;
+}
+
+const { title = "Maya Dashboard", activePage = "overview" } = Astro.props;
+
+const navItems = [
+  { id: "overview", label: "Overview", href: "/", icon: "home" },
+  { id: "payments", label: "Payments", href: "/payments", icon: "credit-card" },
+  { id: "devices", label: "Devices", href: "/devices", icon: "smartphone" },
+  { id: "sessions", label: "Sessions", href: "/sessions", icon: "activity" },
+  { id: "support", label: "Support", href: "/support", icon: "help-circle" },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>{title}</title>
+  </head>
+  <body class="font-sans antialiased">
+    <div class="flex h-screen bg-background">
+      <!-- Sidebar -->
+      <aside class="w-64 border-r border-border bg-card flex flex-col">
+        <!-- Logo -->
+        <div class="h-16 flex items-center px-6 border-b border-border">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
+              <span class="text-background font-bold text-sm">M</span>
+            </div>
+            <span class="font-semibold text-lg tracking-tight">Maya Admin</span>
+          </div>
+        </div>
+        
+        <!-- Navigation -->
+        <nav class="flex-1 px-3 py-4">
+          <ul class="space-y-1">
+            {navItems.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class:list={[
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                    activePage === item.id
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ]}
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    {item.icon === "home" && <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />}
+                    {item.icon === "credit-card" && <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />}
+                    {item.icon === "smartphone" && <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />}
+                    {item.icon === "activity" && <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />}
+                    {item.icon === "help-circle" && <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />}
+                  </svg>
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <header class="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
+          <h1 class="text-lg font-semibold">{title}</h1>
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-muted-foreground">
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}
+            </span>
+          </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="flex-1 overflow-auto p-6">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
+
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    font-family: 'Manrope', system-ui, sans-serif;
+  }
+</style>
+

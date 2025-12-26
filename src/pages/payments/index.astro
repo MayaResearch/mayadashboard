@@ -1,0 +1,337 @@
+---
+export const prerender = false;
+
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import DateFilter from "../../components/DateFilter.astro";
+import { getDeviceMap, getDeviceUserTypes } from "../../lib/db";
+import { getPaymentsPaginated, formatAmount, getPaymentStats, getStatusColor, type DateRange, type PaymentStatus } from "../../lib/razorpay";
+
+// Parse URL params (defaults: today + captured)
+const url = new URL(Astro.request.url);
+const page = parseInt(url.searchParams.get('page') || '1');
+const pageSize = Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageSize') || '100')));
+const dateRange = (url.searchParams.get('range') as DateRange) || 'today';
+const statusFilter = (url.searchParams.get('status') as PaymentStatus) || 'captured';
+
+// Page size options
+const pageSizeOptions = [10, 20, 50, 100];
+
+// Fetch data with server-side pagination, date filter, and status filter
+const [result, paymentStats, deviceMap, deviceUserTypes] = await Promise.all([
+  getPaymentsPaginated({ page, pageSize, dateRange, status: statusFilter }),
+  getPaymentStats(dateRange),
+  getDeviceMap(),
+  getDeviceUserTypes()
+]);
+
+// Create device name lookup
+const deviceNames = new Map(deviceMap.map(d => [d.device_id, d.device_name]));
+
+// Enrich payments with device names and user types
+const payments = result.data.map(p => ({
+  ...p,
+  device_id: p.notes?.device_id || null,
+  device_name: p.notes?.device_id ? deviceNames.get(p.notes.device_id) || null : null,
+  user_type: p.notes?.device_id ? deviceUserTypes.get(p.notes.device_id) || null : null,
+}));
+
+// Pagination helpers
+const totalPages = result.totalPages;
+const maxPagesToShow = 5;
+let startPage = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+if (endPage - startPage + 1 < maxPagesToShow) {
+  startPage = Math.max(1, endPage - maxPagesToShow + 1);
+}
+const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+
+// Build URL preserving current filters
+function buildUrl(p: number, newPageSize?: number) {
+  const params = new URLSearchParams();
+  params.set('page', p.toString());
+  params.set('pageSize', (newPageSize ?? pageSize).toString());
+  if (dateRange !== 'all') params.set('range', dateRange);
+  if (statusFilter !== 'all') params.set('status', statusFilter);
+  return `/payments?${params.toString()}`;
+}
+
+// Build URL for status filter
+function buildStatusUrl(status: PaymentStatus) {
+  const params = new URLSearchParams();
+  params.set('page', '1'); // Reset to page 1 when changing filter
+  if (dateRange !== 'all') params.set('range', dateRange);
+  params.set('status', status); // Always include status since default is 'captured'
+  return `/payments?${params.toString()}`;
+}
+
+// Status filter options
+const statusOptions: { label: string; value: PaymentStatus; color: string }[] = [
+  { label: 'All', value: 'all', color: 'bg-gray-500/10 text-gray-600 border-gray-500/20' },
+  { label: 'Captured', value: 'captured', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+  { label: 'Failed', value: 'failed', color: 'bg-red-500/10 text-red-600 border-red-500/20' },
+  { label: 'Created', value: 'created', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
+  { label: 'Authorized', value: 'authorized', color: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+  { label: 'Refunded', value: 'refunded', color: 'bg-purple-500/10 text-purple-600 border-purple-500/20' },
+];
+---
+
+<DashboardLayout title="Payments" activePage="payments">
+  <div class="space-y-6">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Payments</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{result.total.toLocaleString()}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Success Rate</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight text-emerald-600">
+          {paymentStats.totalPayments > 0 
+            ? Math.round((paymentStats.capturedPayments / paymentStats.totalPayments) * 100) 
+            : 0}%
+        </p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Revenue</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">₹{paymentStats.totalRevenue.toLocaleString('en-IN')}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Current Page</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{page} <span class="text-lg text-muted-foreground">/ {totalPages}</span></p>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="space-y-3">
+      <!-- Date Filter -->
+      <div class="flex items-center justify-between">
+        <DateFilter 
+          baseUrl="/payments" 
+          currentRange={dateRange}
+          preserveParams={{ status: statusFilter }}
+        />
+        <div class="text-sm text-muted-foreground">
+          <span class="font-semibold text-foreground">{result.total.toLocaleString()}</span> payments
+        </div>
+      </div>
+      
+      <!-- Status Filter -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm text-muted-foreground mr-2">Status:</span>
+        {statusOptions.map((option) => (
+          <a 
+            href={buildStatusUrl(option.value)}
+            class:list={[
+              "inline-flex items-center text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+              statusFilter === option.value 
+                ? "bg-foreground text-background border-foreground" 
+                : `${option.color} hover:opacity-80`
+            ]}
+          >
+            {option.label}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="space-y-4">
+
+      <div class="rounded-xl border border-border bg-card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-muted/50 border-b border-border">
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Payment ID</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Device</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">User</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Status</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Method</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Amount</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Contact</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Date</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {payments.length > 0 ? (
+                payments.map((payment) => (
+                  <tr class="hover:bg-muted/30 transition-colors">
+                    <td class="px-4 py-3">
+                      <span class="font-mono text-sm">{payment.id}</span>
+                    </td>
+                    <td class="px-4 py-3 min-w-[200px]">
+                      {payment.device_id ? (
+                        <a href={`/devices/${payment.device_id}`} class="font-mono text-xs hover:underline whitespace-nowrap">{payment.device_id}</a>
+                      ) : (
+                        <span class="text-muted-foreground text-sm">-</span>
+                      )}
+                    </td>
+                    <td class="px-4 py-3">
+                      {payment.user_type ? (
+                        <span class:list={[
+                          "inline-flex items-center text-xs px-2 py-1 rounded-full border font-medium",
+                          payment.user_type === 'premium_user' 
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-gray-500/10 text-gray-600 border-gray-500/20"
+                        ]}>
+                          {payment.user_type === 'premium_user' ? 'Premium' : 'Free'}
+                        </span>
+                      ) : (
+                        <span class="text-muted-foreground text-sm">-</span>
+                      )}
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class:list={[
+                        "inline-flex items-center text-xs px-2 py-1 rounded-full border font-medium",
+                        getStatusColor(payment.status)
+                      ]}>
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <p class="text-sm capitalize font-medium">{payment.method}</p>
+                      {(payment.vpa || payment.wallet || payment.bank) && (
+                        <p class="text-xs text-muted-foreground">{payment.vpa || payment.wallet || payment.bank}</p>
+                      )}
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class:list={[
+                        "text-sm font-semibold",
+                        payment.status === 'captured' && "text-emerald-600"
+                      ]}>
+                        {formatAmount(payment.amount)}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      {payment.email && payment.email !== 'user@maya.ai' ? (
+                        <p class="text-sm">{payment.email}</p>
+                      ) : payment.contact ? (
+                        <p class="text-sm">{payment.contact}</p>
+                      ) : (
+                        <span class="text-muted-foreground text-sm">-</span>
+                      )}
+                    </td>
+                    <td class="px-4 py-3">
+                      <p class="text-sm">{new Date(payment.created_at * 1000).toLocaleDateString('en-IN', { dateStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+                      <p class="text-xs text-muted-foreground">{new Date(payment.created_at * 1000).toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colspan="8" class="px-4 py-12 text-center text-muted-foreground">
+                    No payments found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-muted-foreground">
+            Showing <span class="font-medium text-foreground">{((page - 1) * pageSize) + 1}</span> to <span class="font-medium text-foreground">{Math.min(page * pageSize, result.total)}</span> of <span class="font-medium text-foreground">{result.total.toLocaleString()}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-muted-foreground">Show:</span>
+            <select 
+              id="pageSizeSelect"
+              class="px-2 py-1 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+            >
+              {pageSizeOptions.map((size) => (
+                <option value={size} selected={size === pageSize}>{size}</option>
+              ))}
+            </select>
+            <span class="text-sm text-muted-foreground">per page</span>
+          </div>
+        </div>
+        {totalPages > 1 && (
+          <nav class="flex items-center gap-1">
+            <a 
+              href={page > 1 ? buildUrl(1) : undefined}
+              class:list={[
+                "p-2 rounded-lg border text-sm transition-colors",
+                page > 1 ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+              ]}
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+              </svg>
+            </a>
+            <a 
+              href={page > 1 ? buildUrl(page - 1) : undefined}
+              class:list={[
+                "p-2 rounded-lg border text-sm transition-colors",
+                page > 1 ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+              ]}
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </a>
+            
+            {startPage > 1 && (
+              <a href={buildUrl(1)} class="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors">1</a>
+            )}
+            {startPage > 2 && <span class="px-2 text-muted-foreground">...</span>}
+            
+            {pageNumbers.map((p) => (
+              <a 
+                href={buildUrl(p)}
+                class:list={[
+                  "px-3 py-1.5 rounded-lg text-sm transition-colors",
+                  p === page 
+                    ? "bg-foreground text-background font-medium" 
+                    : "border border-border hover:bg-muted"
+                ]}
+              >
+                {p}
+              </a>
+            ))}
+            
+            {endPage < totalPages - 1 && <span class="px-2 text-muted-foreground">...</span>}
+            {endPage < totalPages && (
+              <a href={buildUrl(totalPages)} class="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors">{totalPages}</a>
+            )}
+
+            <a 
+              href={page < totalPages ? buildUrl(page + 1) : undefined}
+              class:list={[
+                "p-2 rounded-lg border text-sm transition-colors",
+                page < totalPages ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+              ]}
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </a>
+            <a 
+              href={page < totalPages ? buildUrl(totalPages) : undefined}
+              class:list={[
+                "p-2 rounded-lg border text-sm transition-colors",
+                page < totalPages ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+              ]}
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5" />
+              </svg>
+            </a>
+          </nav>
+        )}
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script>
+  document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
+    const newPageSize = (e.target as HTMLSelectElement).value;
+    const url = new URL(window.location.href);
+    url.searchParams.set('pageSize', newPageSize);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+  });
+</script>

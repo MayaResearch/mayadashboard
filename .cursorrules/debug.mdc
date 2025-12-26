@@ -1,0 +1,489 @@
+---
+alwaysApply: false
+---
+# Senior Engineer Debugging Methodology
+
+## 🔍 Initial Assessment
+
+### 1. Reproduce the Issue
+```markdown
+- [ ] **Can you reproduce it consistently?**
+  - Steps to reproduce:
+    1. 
+    2. 
+    3. 
+  
+- [ ] **Environment details:**
+  - Browser/Runtime:
+  - OS:
+  - Version:
+  - Network conditions:
+  
+- [ ] **Frequency:**
+  - Always / Sometimes / Rarely
+  - Pattern identified:
+```
+
+### 2. Gather Information
+```typescript
+// Add comprehensive logging
+console.group('🐛 Debug: Feature Name');
+console.log('Input:', input);
+console.log('State before:', state);
+console.log('Props:', props);
+console.trace('Call stack');
+console.groupEnd();
+
+// Use debugger strategically
+debugger; // Pause execution here
+
+// Add error boundaries with detailed logging
+<ErrorBoundary
+  onError={(error, errorInfo) => {
+    console.error('Component Error:', {
+      error: error.toString(),
+      componentStack: errorInfo.componentStack,
+      props: this.props,
+      state: this.state,
+    });
+  }}
+>
+```
+
+## 🤔 Root Cause Analysis: The 5 Whys
+
+### Problem: [Describe the issue]
+
+#### Why #1: Why is this happening?
+**Answer**: [Initial symptom/observation]
+**Evidence**: 
+- Log output:
+- Error message:
+- Behavior observed:
+
+#### Why #2: Why does [answer from #1] occur?
+**Answer**: [Dig deeper into the cause]
+**Evidence**:
+- Code examination:
+- Data inspection:
+- Network trace:
+
+#### Why #3: Why does [answer from #2] happen?
+**Answer**: [Continue drilling down]
+**Evidence**:
+- Configuration check:
+- Dependencies review:
+- State analysis:
+
+#### Why #4: Why is [answer from #3] the case?
+**Answer**: [Getting closer to root]
+**Evidence**:
+- System design:
+- Business logic:
+- External factors:
+
+#### Why #5: Why does [answer from #4] exist?
+**Answer**: [Root cause identified]
+**Evidence**:
+- Original requirement:
+- Implementation decision:
+- Technical constraint:
+
+### Root Cause Summary
+```markdown
+**Root Cause**: [Clear statement of the fundamental issue]
+**Impact**: [What this affects]
+**Priority**: Critical | High | Medium | Low
+```
+
+## 🕵️ Systematic Debugging Approach
+
+### Phase 1: Isolation
+```typescript
+// 1. Binary search to isolate the problem
+if (isWorkingScenario) {
+  console.log('✅ This part works');
+} else {
+  console.log('❌ Problem is here');
+  // Narrow down further
+}
+
+// 2. Disable features systematically
+const DEBUG_FLAGS = {
+  SKIP_API_CALL: false,
+  USE_MOCK_DATA: true,
+  DISABLE_OPTIMIZATION: true,
+  VERBOSE_LOGGING: true,
+};
+
+// 3. Simplify the reproduction
+// Remove complexity until the bug disappears
+// Then add back until it reappears
+```
+
+### Phase 2: Investigation Techniques
+
+#### Browser DevTools
+```javascript
+// Performance profiling
+console.time('Operation');
+// ... code to measure ...
+console.timeEnd('Operation');
+
+// Memory profiling
+console.memory; // Check memory usage
+
+// Network inspection
+// Use Network tab to check:
+// - Request/Response headers
+// - Payload
+// - Timing
+// - Status codes
+```
+
+#### React DevTools
+```typescript
+// Check component props/state
+// Use React DevTools Profiler to find:
+// - Unnecessary renders
+// - Slow components
+// - State updates
+
+// Add why-did-you-render
+import './wdyr'; // Setup file
+Component.whyDidYouRender = true;
+```
+
+#### TypeScript Debugging
+```typescript
+// Type checking at runtime
+function assertType<T>(value: unknown, guard: (v: unknown) => v is T): asserts value is T {
+  if (!guard(value)) {
+    console.error('Type assertion failed:', value);
+    throw new TypeError('Type assertion failed');
+  }
+}
+
+// Validate API responses
+const data = await fetch('/api/data');
+assertType(data, isExpectedType);
+```
+
+### Phase 3: Common Bug Patterns
+
+#### 1. State Management Issues
+```typescript
+// Problem: Stale closure
+const [count, setCount] = useState(0);
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    setCount(count + 1); // ❌ Bug: count is stale
+  }, 1000);
+  return () => clearInterval(timer);
+}, []); // Missing dependency
+
+// Solution:
+useEffect(() => {
+  const timer = setInterval(() => {
+    setCount(prev => prev + 1); // ✅ Use functional update
+  }, 1000);
+  return () => clearInterval(timer);
+}, []);
+```
+
+#### 2. Async Race Conditions
+```typescript
+// Problem: Race condition
+useEffect(() => {
+  fetchData(id).then(setData); // ❌ May set stale data
+}, [id]);
+
+// Solution:
+useEffect(() => {
+  let cancelled = false;
+  
+  fetchData(id).then(result => {
+    if (!cancelled) {
+      setData(result); // ✅ Only set if not cancelled
+    }
+  });
+  
+  return () => {
+    cancelled = true;
+  };
+}, [id]);
+```
+
+#### 3. Memory Leaks
+```typescript
+// Problem: Event listener not cleaned up
+useEffect(() => {
+  window.addEventListener('resize', handleResize); // ❌ Leak
+}, []);
+
+// Solution:
+useEffect(() => {
+  window.addEventListener('resize', handleResize);
+  return () => {
+    window.removeEventListener('resize', handleResize); // ✅ Cleanup
+  };
+}, []);
+```
+
+#### 4. Infinite Loops
+```typescript
+// Problem: Effect triggers itself
+useEffect(() => {
+  setData({ ...data, updated: true }); // ❌ Creates new object
+}, [data]); // Triggers on every render
+
+// Solution:
+useEffect(() => {
+  setData(prev => ({ ...prev, updated: true })); // ✅ Functional update
+}, []); // Run once
+```
+
+## 🛠️ Debugging Tools & Commands
+
+### Console Debugging Enhanced
+```javascript
+// Styled console output
+console.log('%c Debug Point', 'color: blue; font-weight: bold;');
+
+// Table format for objects
+console.table(arrayOfObjects);
+
+// Conditional logging
+console.assert(condition, 'Assertion failed:', data);
+
+// Timing groups
+console.time('Total Operation');
+console.time('Step 1');
+// ... code ...
+console.timeEnd('Step 1');
+console.time('Step 2');
+// ... code ...
+console.timeEnd('Step 2');
+console.timeEnd('Total Operation');
+```
+
+### Network Debugging
+```typescript
+// Intercept and log all API calls
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  console.log('🔄 API Call:', args);
+  const response = await originalFetch(...args);
+  console.log('✅ API Response:', response);
+  return response;
+};
+```
+
+### React Debugging Helpers
+```tsx
+// Debug component renders
+const RenderCounter: React.FC = () => {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  
+  return (
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      right: 0, 
+      background: 'red', 
+      color: 'white', 
+      padding: '5px' 
+    }}>
+      Renders: {renderCount.current}
+    </div>
+  );
+};
+```
+
+## 🎯 Problem-Specific Debugging
+
+### API Issues
+```typescript
+// 1. Check request
+console.log('Request URL:', url);
+console.log('Request Headers:', headers);
+console.log('Request Body:', JSON.stringify(body, null, 2));
+
+// 2. Check response
+console.log('Response Status:', response.status);
+console.log('Response Headers:', response.headers);
+console.log('Response Body:', await response.clone().text());
+
+// 3. Validate against schema
+const isValid = validateSchema(response.data, expectedSchema);
+if (!isValid) {
+  console.error('Schema validation failed:', validateSchema.errors);
+}
+```
+
+### Performance Issues
+```typescript
+// 1. Measure component render time
+const startTime = performance.now();
+// ... render component ...
+const endTime = performance.now();
+console.log(`Render time: ${endTime - startTime}ms`);
+
+// 2. Find expensive operations
+const measurePerformance = (fn: Function, label: string) => {
+  const start = performance.now();
+  const result = fn();
+  const end = performance.now();
+  console.log(`${label}: ${end - start}ms`);
+  return result;
+};
+
+// 3. Check for memory leaks
+const checkMemoryUsage = () => {
+  if (performance.memory) {
+    console.table({
+      'Used JS Heap': `${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)} MB`,
+      'Total JS Heap': `${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)} MB`,
+      'Limit': `${(performance.memory.jsHeapSizeLimit / 1048576).toFixed(2)} MB`,
+    });
+  }
+};
+```
+
+### State Management Issues
+```typescript
+// Debug Redux/Context state changes
+const logStateChanges = (prev: State, next: State) => {
+  const changes = Object.keys(next).filter(
+    key => prev[key] !== next[key]
+  );
+  
+  if (changes.length > 0) {
+    console.group('🔄 State Changed');
+    changes.forEach(key => {
+      console.log(`${key}:`, {
+        old: prev[key],
+        new: next[key],
+      });
+    });
+    console.groupEnd();
+  }
+};
+```
+
+## 📋 Debugging Checklist
+
+### Before You Start
+- [ ] Read the error message carefully
+- [ ] Check recent changes (git diff)
+- [ ] Verify environment variables
+- [ ] Clear cache and restart
+- [ ] Check browser console
+- [ ] Check network tab
+
+### During Investigation
+- [ ] Add strategic console.logs
+- [ ] Use debugger statements
+- [ ] Check component props/state
+- [ ] Verify API responses
+- [ ] Test with different data
+- [ ] Try in different environment
+
+### After Finding the Bug
+- [ ] Understand why it happened
+- [ ] Fix the root cause, not symptoms
+- [ ] Add tests to prevent regression
+- [ ] Document the issue and solution
+- [ ] Check for similar issues elsewhere
+- [ ] Update error handling if needed
+
+## 🚨 Emergency Debugging
+
+### When Everything is Broken
+```bash
+# 1. Reset to known good state
+git stash
+git checkout main
+npm ci
+npm run build
+
+# 2. Binary search commits
+git bisect start
+git bisect bad HEAD
+git bisect good <last-known-good-commit>
+# Test and mark as good/bad until found
+
+# 3. Check dependencies
+npm ls
+npm audit
+npm outdated
+
+# 4. Clear all caches
+rm -rf node_modules
+rm package-lock.json
+npm cache clean --force
+npm install
+
+# 5. Check environment
+env | grep -E "NODE|REACT|API"
+```
+
+## 📝 Bug Report Template
+
+```markdown
+## Bug Description
+[Clear description of the issue]
+
+## Steps to Reproduce
+1. 
+2. 
+3. 
+
+## Expected Behavior
+[What should happen]
+
+## Actual Behavior
+[What actually happens]
+
+## Root Cause (5 Whys Analysis)
+1. Why: 
+2. Why: 
+3. Why: 
+4. Why: 
+5. Why: 
+
+## Solution
+[How it was fixed]
+
+## Prevention
+[How to prevent this in the future]
+
+## Tests Added
+- [ ] Unit test
+- [ ] Integration test
+- [ ] E2E test
+
+## Related Issues
+- Links to related bugs/features
+```
+
+## 💡 Pro Tips
+
+1. **Start with the simplest explanation** - Often the bug is simpler than you think
+2. **Change one thing at a time** - Systematic approach prevents confusion
+3. **Keep a debugging log** - Document what you've tried
+4. **Take breaks** - Fresh eyes often spot obvious issues
+5. **Rubber duck debugging** - Explain the problem out loud
+6. **Use git bisect** - Find when the bug was introduced
+7. **Check the basics first** - Typos, missing imports, etc.
+8. **Trust the error messages** - They usually point to the issue
+9. **Reproduce in isolation** - Create minimal test case
+10. **Ask for help** - Another perspective can be invaluable---
+description:
+globs:
+alwaysApply: true
+------
+alwaysApply: true
+---

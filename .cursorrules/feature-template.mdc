@@ -1,0 +1,369 @@
+---
+title: Feature Development Template
+description: Step-by-step methodology for developing new features in Maya Research project
+tags: [workflow, planning, development]
+alwaysApply: true
+---
+
+# Feature Development Methodology
+
+## Overview
+
+This document outlines the systematic approach for implementing new features in the Maya Research project. Follow these steps for every feature to ensure consistency, quality, and maintainability.
+
+## Development Phases
+
+### Phase 1: Planning & Design
+
+#### 1.1 Requirements Gathering
+- [ ] Define feature requirements clearly
+- [ ] Identify user stories and use cases
+- [ ] List acceptance criteria
+- [ ] Determine dependencies and constraints
+
+#### 1.2 Technical Design
+- [ ] Design component structure
+- [ ] Plan data models and types
+- [ ] Design API endpoints (if needed)
+- [ ] Identify reusable components
+- [ ] Plan folder structure
+
+#### 1.3 Documentation
+- [ ] Create feature plan document
+- [ ] Document design decisions
+- [ ] List technical requirements
+- [ ] Define success metrics
+
+### Phase 2: Implementation
+
+#### 2.1 Setup
+```
+/working-memory/
+  └── [feature-name].plan   # Feature tracking file
+  
+/src/
+  ├── components/
+  │   └── [FeatureName]/   # Feature-specific components
+  ├── pages/
+  │   └── [feature]/       # Feature pages
+  └── lib/
+      ├── api/services/[feature]Service.ts
+      ├── types/[feature].types.ts
+      └── hooks/use[Feature].ts
+```
+
+#### 2.2 Type Definitions
+Create comprehensive TypeScript types:
+
+```typescript
+// src/lib/types/feature.types.ts
+export interface FeatureData {
+  id: string;
+  name: string;
+  // ... other fields
+}
+
+export interface FeatureState {
+  data: FeatureData | null;
+  loading: boolean;
+  error: Error | null;
+}
+
+export type FeatureAction = 
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; payload: FeatureData }
+  | { type: 'FETCH_ERROR'; error: Error };
+```
+
+#### 2.3 API Service
+Create type-safe API services:
+
+```typescript
+// src/lib/api/services/featureService.ts
+import type { FeatureData } from '@/lib/types/feature.types';
+
+export class FeatureService {
+  private baseUrl = '/api/features';
+
+  async getAll(): Promise<FeatureData[]> {
+    const response = await fetch(this.baseUrl);
+    if (!response.ok) throw new Error('Failed to fetch features');
+    return response.json();
+  }
+
+  async getById(id: string): Promise<FeatureData> {
+    const response = await fetch(`${this.baseUrl}/${id}`);
+    if (!response.ok) throw new Error('Feature not found');
+    return response.json();
+  }
+}
+
+export const featureService = new FeatureService();
+```
+
+#### 2.4 Custom Hooks (if using React)
+```typescript
+// src/lib/hooks/useFeature.ts
+import { useState, useEffect } from 'react';
+import type { FeatureData } from '@/lib/types/feature.types';
+import { featureService } from '@/lib/api/services/featureService';
+
+export function useFeature(id: string) {
+  const [data, setData] = useState<FeatureData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    featureService.getById(id)
+      .then(setData)
+      .catch(setError)
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  return { data, loading, error };
+}
+```
+
+#### 2.5 Components
+Create components following the structure:
+
+```astro
+---
+// src/components/Feature/FeatureCard.astro
+import type { FeatureData } from '@/lib/types/feature.types';
+
+interface Props {
+  feature: FeatureData;
+  variant?: 'default' | 'compact';
+}
+
+const { feature, variant = 'default' } = Astro.props;
+---
+
+<div class="feature-card">
+  <h3>{feature.name}</h3>
+  <!-- Component content -->
+</div>
+
+<style>
+  .feature-card {
+    /* Scoped styles */
+  }
+</style>
+```
+
+### Phase 3: Testing
+
+#### 3.1 Component Testing
+- [ ] Test component rendering
+- [ ] Test props handling
+- [ ] Test event handlers
+- [ ] Test edge cases
+
+#### 3.2 Integration Testing
+- [ ] Test API integration
+- [ ] Test data flow
+- [ ] Test error scenarios
+- [ ] Test loading states
+
+#### 3.3 Accessibility Testing
+- [ ] Keyboard navigation
+- [ ] Screen reader support
+- [ ] ARIA labels
+- [ ] Focus management
+
+#### 3.4 Responsive Testing
+- [ ] Mobile (320px - 767px)
+- [ ] Tablet (768px - 1023px)
+- [ ] Desktop (1024px+)
+
+### Phase 4: Quality Assurance
+
+#### 4.1 Code Review Checklist
+- [ ] TypeScript strict mode compliance
+- [ ] No `any` types used
+- [ ] Proper error handling
+- [ ] Loading states implemented
+- [ ] Responsive design verified
+- [ ] Accessibility standards met
+- [ ] Performance optimized
+- [ ] Code documented
+
+#### 4.2 Performance Checks
+- [ ] Optimize bundle size
+- [ ] Lazy load components if needed
+- [ ] Image optimization
+- [ ] Minimize re-renders (React)
+
+#### 4.3 Documentation
+- [ ] Update feature documentation
+- [ ] Add code comments for complex logic
+- [ ] Update API documentation
+- [ ] Create usage examples
+
+### Phase 5: Deployment
+
+#### 5.1 Pre-Deployment
+- [ ] Run linting: `npm run lint`
+- [ ] Build check: `npm run build`
+- [ ] Preview build: `npm run preview`
+- [ ] Test in production-like environment
+
+#### 5.2 Deployment
+- [ ] Deploy to staging
+- [ ] Smoke test critical paths
+- [ ] Monitor for errors
+- [ ] Deploy to production
+
+#### 5.3 Post-Deployment
+- [ ] Monitor performance metrics
+- [ ] Check error logs
+- [ ] Gather user feedback
+- [ ] Update working memory plan
+
+## Working Memory Plan Template
+
+Create a `.plan` file in `/working-memory/` for each feature:
+
+```markdown
+# [Feature Name] Implementation Plan
+
+## Status: [Planning | In Progress | Testing | Complete]
+
+## Overview
+Brief description of the feature
+
+## Requirements
+- Requirement 1
+- Requirement 2
+
+## Technical Design
+### Components
+- Component 1: Description
+- Component 2: Description
+
+### API Endpoints
+- GET /api/feature: Description
+- POST /api/feature: Description
+
+### Types
+- FeatureData
+- FeatureState
+
+## Implementation Progress
+- [x] Phase 1: Planning
+- [ ] Phase 2: Implementation
+- [ ] Phase 3: Testing
+- [ ] Phase 4: Quality Assurance
+- [ ] Phase 5: Deployment
+
+## Issues & Solutions
+### Issue 1
+- Description: ...
+- Solution: ...
+- Status: Resolved
+
+## Testing
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] E2E tests
+- [ ] Accessibility tests
+
+## Performance Metrics
+- Bundle size: XKB
+- Load time: Xms
+- Lighthouse score: X/100
+
+## Notes
+Additional notes and considerations
+```
+
+## Best Practices Summary
+
+### Code Organization
+1. One feature = One folder/module
+2. Separate concerns (UI, logic, data)
+3. Reusable components in `/src/components/`
+4. Feature-specific in `/src/components/[Feature]/`
+
+### TypeScript
+1. Define types before implementation
+2. Use interfaces for object shapes
+3. Use type unions for variants
+4. No `any` types - ever
+
+### Styling
+1. Mobile-first responsive design
+2. Use Tailwind utility classes
+3. Scoped styles for custom CSS
+4. Follow Tailwind class ordering
+
+### Performance
+1. Lazy load large components
+2. Optimize images (WebP, proper sizes)
+3. Minimize bundle size
+4. Use React.memo for expensive components (React only)
+
+### Accessibility
+1. Semantic HTML elements
+2. ARIA labels where needed
+3. Keyboard navigation support
+4. Sufficient color contrast
+
+### Error Handling
+1. Always handle loading states
+2. Show user-friendly error messages
+3. Log errors for debugging
+4. Provide fallback UI
+
+## Example Feature: User Profile
+
+```typescript
+// 1. Types
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+// 2. Service
+export class UserProfileService {
+  async getProfile(id: string): Promise<UserProfile> {
+    const response = await fetch(`/api/users/${id}/profile`);
+    if (!response.ok) throw new Error('Failed to fetch profile');
+    return response.json();
+  }
+}
+
+// 3. Component
+---
+import type { UserProfile } from '@/lib/types/user.types';
+
+interface Props {
+  profile: UserProfile;
+}
+
+const { profile } = Astro.props;
+---
+
+<div class="profile-card">
+  {profile.avatar && (
+    <img src={profile.avatar} alt={profile.name} />
+  )}
+  <h2>{profile.name}</h2>
+  <p>{profile.email}</p>
+</div>
+```
+
+## Summary
+
+Follow this template for every feature to ensure:
+- ✅ Consistent code structure
+- ✅ Type safety throughout
+- ✅ Proper error handling
+- ✅ Complete testing coverage
+- ✅ Documentation
+- ✅ Maintainability
+- ✅ Performance optimization
+- ✅ Accessibility compliance

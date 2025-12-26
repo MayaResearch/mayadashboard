@@ -1,0 +1,112 @@
+---
+export const prerender = false;
+
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import ServerTable from "../../components/ServerTable.astro";
+import DateFilter from "../../components/DateFilter.astro";
+import { getSessionsPaginated, getDeviceMap, type QueryParams, type DateRange } from "../../lib/db";
+
+// Parse URL params
+const url = new URL(Astro.request.url);
+const dateRange = (url.searchParams.get('range') as DateRange) || 'all';
+const params: QueryParams = {
+  page: parseInt(url.searchParams.get('page') || '1'),
+  pageSize: Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageSize') || '100'))),
+  sort: url.searchParams.get('sort') || 'created_at',
+  order: (url.searchParams.get('order') as 'asc' | 'desc') || 'desc',
+  search: url.searchParams.get('search') || '',
+  dateRange,
+  status: 'completed' // Only show completed sessions
+};
+
+// Fetch data with server-side pagination
+const [result, deviceMap] = await Promise.all([
+  getSessionsPaginated(params),
+  getDeviceMap()
+]);
+
+// Create device name lookup
+const deviceNames = new Map(deviceMap.map(d => [d.device_id, d.device_name]));
+
+// Enrich sessions with device names
+const enrichedSessions = result.data.map(s => ({
+  ...s,
+  device_name: deviceNames.get(s.device_id) || null,
+}));
+
+// Column definitions
+const columns = [
+  {
+    key: 'session_id',
+    label: 'Session ID',
+    sortable: true,
+    render: (value: string) => `<span class="font-mono text-xs whitespace-nowrap">${value}</span>`
+  },
+  {
+    key: 'device_id',
+    label: 'Device ID',
+    sortable: true,
+    render: (value: string) => `
+      <a href="/devices/${value}" class="font-mono text-xs hover:underline whitespace-nowrap">${value}</a>
+    `
+  },
+  {
+    key: 'total_generations',
+    label: 'Generations',
+    sortable: true,
+    render: (value: number) => `<span class="text-sm font-semibold">${value}</span>`
+  },
+  {
+    key: 'duration_seconds',
+    label: 'Duration',
+    sortable: true,
+    render: (value: number) => `
+      <p class="text-sm">${value}s</p>
+      <p class="text-xs text-muted-foreground">${Math.round(value / 60)}m</p>
+    `
+  },
+  {
+    key: 'created_at',
+    label: 'Created',
+    sortable: true,
+    render: (value: number) => {
+      const date = new Date(value * 1000);
+      return `
+        <p class="text-sm">${date.toLocaleDateString('en-IN', { dateStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+        <p class="text-xs text-muted-foreground">${date.toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+      `;
+    }
+  }
+];
+---
+
+<DashboardLayout title="Sessions" activePage="sessions">
+  <div class="space-y-6">
+    <!-- Date Filter -->
+    <div class="flex items-center justify-between">
+      <DateFilter 
+        baseUrl="/sessions" 
+        currentRange={dateRange}
+        preserveParams={{ sort: params.sort || '', order: params.order || '', search: params.search || '', pageSize: params.pageSize?.toString() || '' }}
+      />
+      <div class="text-sm text-muted-foreground">
+        <span class="font-semibold text-foreground">{result.total.toLocaleString()}</span> completed sessions
+      </div>
+    </div>
+
+    <!-- Server-Side Table -->
+    <ServerTable 
+      data={enrichedSessions}
+      columns={columns}
+      total={result.total}
+      page={result.page}
+      pageSize={result.pageSize}
+      totalPages={result.totalPages}
+      sort={params.sort}
+      order={params.order}
+      search={params.search}
+      baseUrl="/sessions"
+      searchPlaceholder="Search by device or session ID..."
+    />
+  </div>
+</DashboardLayout>

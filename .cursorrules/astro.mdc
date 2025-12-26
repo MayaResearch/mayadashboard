@@ -1,0 +1,1781 @@
+---
+alwaysApply: true
+---
+# Astro + React Architecture Rules
+
+## 🏗️ CORE ARCHITECTURAL PRINCIPLE
+
+**ALL SERVER-SIDE OPERATIONS MUST HAPPEN IN `.astro` FILES**
+- Database calls, API requests, authentication checks happen in Astro frontmatter
+- Data is fetched server-side and passed as props to React components
+- React components handle UI interactions and client-side state only
+
+## 📁 FILE STRUCTURE PATTERN (MANDATORY)
+
+```
+src/pages/admin/[feature]/
+├── index.astro                    # List page with server-side data fetching
+├── [id].astro                     # Detail/Edit page with server-side data fetching
+├── new.astro                      # Create page (optional server-side setup)
+└── _components/
+    ├── [Feature]Screen.tsx        # Main screen component (receives server data)
+    ├── [Feature]Form.tsx          # Form component (handles client interactions)
+    ├── [Feature]List.tsx          # List component (receives server data)
+    └── [Feature]Details.tsx       # Details component (receives server data)
+```
+
+## 🔄 DATA FLOW PATTERN
+
+### ✅ CORRECT: Server-side data fetching in .astro files
+
+```astro
+---
+// pages/admin/users/index.astro
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import UsersScreen from "./_components/UsersScreen.tsx";
+import { UserRole } from "@/lib/utils/auth";
+import { serverApiService, type ApiResponse } from "@/lib/utils/api";
+import { CONSTANTS, ROUTES } from "@/lib/utils/constants";
+
+// 1. Authentication & Authorization (Server-side)
+const currentUser = Astro.locals.user;
+if (!currentUser || !hasPermission(currentUser, 'users.read')) {
+  return Astro.redirect('/admin/dashboard');
+}
+
+// 2. Data Fetching (Server-side)
+const usersResponse: ApiResponse<User[]> = await serverApiService.get(
+  ROUTES.USERS_LIST,
+  Astro.cookies.get(CONSTANTS.ACCESS_TOKEN_KEY)?.value || "",
+  Astro.cookies
+);
+
+const users = usersResponse.success ? usersResponse.data : [];
+
+// 3. Additional server-side data if needed
+const statsResponse = await serverApiService.get(
+  ROUTES.USER_STATS,
+  Astro.cookies.get(CONSTANTS.ACCESS_TOKEN_KEY)?.value || "",
+  Astro.cookies
+);
+
+const userStats = statsResponse.success ? statsResponse.data : null;
+---
+
+<DashboardLayout title="Users - MayaResearch Admin">
+  <UsersScreen 
+    users={users}
+    stats={userStats}
+    currentUser={currentUser}
+    client:load 
+  />
+</DashboardLayout>
+```
+
+### ✅ CORRECT: Dynamic page with parameter handling
+
+```astro
+---
+// pages/admin/users/[id].astro
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import UserDetailsScreen from "./_components/UserDetailsScreen.tsx";
+import { UserRole } from "@/lib/utils/auth";
+import { serverApiService } from "@/lib/utils/api";
+import { CONSTANTS, ROUTES } from "@/lib/utils/constants";
+
+// 1. Authentication Check
+const currentUser = Astro.locals.user;
+if (!currentUser) {
+  return Astro.redirect('/auth/login');
+}
+
+// 2. Extract and validate parameters
+const { id } = Astro.params;
+if (!id) {
+  return Astro.redirect('/admin/users');
+}
+
+// 3. Fetch user data server-side
+const userResponse = await serverApiService.get(
+  ROUTES.GET_USER_ROUTE(id),
+  Astro.cookies.get(CONSTANTS.ACCESS_TOKEN_KEY)?.value || "",
+  Astro.cookies
+);
+
+if (!userResponse.success) {
+  return Astro.redirect('/admin/users?error=user-not-found');
+}
+
+const user = userResponse.data;
+
+// 4. Fetch related data (API keys, usage metrics)
+const [apiKeysResponse, metricsResponse] = await Promise.all([
+  serverApiService.get(
+    ROUTES.GET_USER_API_KEYS_ROUTE(id),
+    Astro.cookies.get(CONSTANTS.ACCESS_TOKEN_KEY)?.value || "",
+    Astro.cookies
+  ),
+  serverApiService.get(
+    ROUTES.GET_USER_METRICS_ROUTE(id),
+    Astro.cookies.get(CONSTANTS.ACCESS_TOKEN_KEY)?.value || "",
+    Astro.cookies
+  )
+]);
+
+const apiKeys = apiKeysResponse.success ? apiKeysResponse.data : [];
+const metrics = metricsResponse.success ? metricsResponse.data : [];
+---
+
+<DashboardLayout title={`${user.name} - User Details`}>
+  <UserDetailsScreen 
+    user={user}
+    apiKeys={apiKeys}
+    metrics={metrics}
+    currentUser={currentUser}
+    client:load 
+  />
+</DashboardLayout>
+```
+
+## 🎯 REACT COMPONENT PATTERNS
+
+### ✅ CORRECT: React components receive server data as props
+
+```tsx
+// _components/UsersScreen.tsx
+import React, { useState } from 'react';
+import type { User, UserStats, CurrentUser } from '@/lib/types';
+
+interface UsersScreenProps {
+  users: User[];
+  stats: UserStats | null;
+  currentUser: CurrentUser;
+}
+
+export const UsersScreen: React.FC<UsersScreenProps> = ({ 
+  users, 
+  stats, 
+  currentUser 
+}) => {
+  // Client-side state for UI interactions
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  
+  // Client-side filtering (based on server data)
+  const filteredUsers = users.filter(user =>
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Client-side API calls for mutations
+  const handleCreateUser = async (userData: CreateUserData) => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      
+      if (response.ok) {
+        // Redirect to refresh server data
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to create user:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* UI components here */}
+    </div>
+  );
+};
+
+export default UsersScreen;
+```
+
+### ✅ CORRECT: Form components handle client-side interactions
+
+```tsx
+// _components/UserForm.tsx
+import React, { useState } from 'react';
+import type { User } from '@/lib/types';
+
+interface UserFormProps {
+  user?: User; // Optional for edit mode
+  onSuccess?: () => void;
+}
+
+export const UserForm: React.FC<UserFormProps> = ({ user, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    role: user?.role || 'user'
+  });
+  
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const url = user ? `/api/users/${user.id}` : '/api/users';
+      const method = user ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        onSuccess?.();
+        // Redirect to refresh server data
+        window.location.href = '/admin/users';
+      }
+    } catch (error) {
+      console.error('Form submission failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+};
+
+export default UserForm;
+```
+
+## 🔐 AUTHENTICATION & AUTHORIZATION PATTERNS
+
+### ✅ CORRECT: Server-side auth checks
+
+```astro
+---
+// Every protected page should start with this pattern
+import { UserRole } from "@/lib/utils/auth";
+
+// 1. Check authentication
+const currentUser = Astro.locals.user;
+if (!currentUser) {
+  return Astro.redirect('/auth/login');
+}
+
+// 2. Check authorization (role-based)
+if (currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.SUPER_ADMIN) {
+  return Astro.redirect('/admin/dashboard?error=insufficient-permissions');
+}
+
+// 3. Feature-specific permissions
+if (!hasPermission(currentUser, 'users.create')) {
+  return Astro.redirect('/admin/dashboard?error=no-create-permission');
+}
+---
+```
+
+### ✅ CORRECT: Permission helper functions
+
+```typescript
+// lib/utils/auth.ts
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+  SUPER_ADMIN = 'super_admin'
+}
+
+export enum Permission {
+  USERS_READ = 'users.read',
+  USERS_CREATE = 'users.create',
+  USERS_UPDATE = 'users.update',
+  USERS_DELETE = 'users.delete',
+  API_KEYS_MANAGE = 'api_keys.manage',
+  METRICS_VIEW = 'metrics.view'
+}
+
+export function hasPermission(user: CurrentUser, permission: Permission): boolean {
+  // Super admin has all permissions
+  if (user.role === UserRole.SUPER_ADMIN) return true;
+  
+  // Define role-based permissions
+  const rolePermissions = {
+    [UserRole.ADMIN]: [
+      Permission.USERS_READ,
+      Permission.USERS_CREATE,
+      Permission.USERS_UPDATE,
+      Permission.API_KEYS_MANAGE,
+      Permission.METRICS_VIEW
+    ],
+    [UserRole.USER]: [
+      Permission.USERS_READ,
+      Permission.METRICS_VIEW
+    ]
+  };
+  
+  return rolePermissions[user.role]?.includes(permission) || false;
+}
+```
+
+## 🗄️ SUPABASE QUERY OPTIMIZATION RULES
+
+### ✅ CORRECT: Use JOIN queries for multiple tables
+
+```astro
+---
+// ✅ GOOD: Single query with JOIN when fetching related data
+const { data: usersWithKeys, error } = await supabase
+  .from('users')
+  .select(`
+    *,
+    api_keys (
+      id,
+      name,
+      key,
+      created_at,
+      last_used,
+      request_count,
+      status
+    ),
+    usage_metrics (
+      id,
+      endpoint,
+      request_count,
+      date
+    )
+  `)
+  .order('created_at', { ascending: false });
+---
+```
+
+### ❌ DON'T: Multiple separate calls
+
+```astro
+---
+// ❌ WRONG: Multiple separate database calls
+const { data: users } = await supabase.from('users').select('*');
+const { data: apiKeys } = await supabase.from('api_keys').select('*');
+const { data: metrics } = await supabase.from('usage_metrics').select('*');
+// This creates multiple round trips to the database
+---
+```
+
+### ✅ CORRECT: Optimized queries with filters
+
+```astro
+---
+// ✅ GOOD: Single query with filtering and aggregation
+const { data: userStats, error } = await supabase
+  .from('users')
+  .select(`
+    id,
+    status,
+    total_requests,
+    api_keys!inner (
+      id,
+      status,
+      request_count
+    )
+  `)
+  .eq('api_keys.status', 'active');
+
+// ✅ GOOD: Use RPC for complex aggregations
+const { data: dashboardStats } = await supabase
+  .rpc('get_dashboard_stats');
+---
+```
+
+### ✅ CORRECT: Efficient pagination with counting
+
+```astro
+---
+// ✅ GOOD: Single query with count
+const { data: users, count, error } = await supabase
+  .from('users')
+  .select(`
+    *,
+    api_keys (count)
+  `, { count: 'exact' })
+  .range(0, 9); // First 10 users
+---
+```
+
+## 🌐 API SERVICE PATTERNS
+
+### ✅ CORRECT: Server-side API service
+
+```typescript
+// lib/utils/api.ts
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  error?: string;
+}
+
+export class ServerApiService {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = process.env.API_BASE_URL || '') {
+    this.baseUrl = baseUrl;
+  }
+
+  async get<T>(
+    endpoint: string, 
+    accessToken: string, 
+    cookies?: any
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('API GET error:', error);
+      return { 
+        success: false, 
+        data: null as any, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  async post<T>(
+    endpoint: string, 
+    body: any, 
+    accessToken: string
+  ): Promise<ApiResponse<T>> {
+    // Similar implementation
+  }
+
+  async put<T>(
+    endpoint: string, 
+    body: any, 
+    accessToken: string
+  ): Promise<ApiResponse<T>> {
+    // Similar implementation
+  }
+
+  async delete<T>(
+    endpoint: string, 
+    accessToken: string
+  ): Promise<ApiResponse<T>> {
+    // Similar implementation
+  }
+}
+
+export const serverApiService = new ServerApiService();
+```
+
+## 🛣️ ROUTING & CONSTANTS PATTERNS
+
+### ✅ CORRECT: Centralized routes and constants
+
+```typescript
+// lib/utils/constants.ts
+export const CONSTANTS = {
+  ACCESS_TOKEN_KEY: 'access_token',
+  REFRESH_TOKEN_KEY: 'refresh_token',
+  USER_DATA_KEY: 'user_data',
+  SESSION_TIMEOUT: 24 * 60 * 60 * 1000, // 24 hours
+} as const;
+
+export const ROUTES = {
+  // Authentication
+  LOGIN: '/auth/login',
+  LOGOUT: '/auth/logout',
+  
+  // Users
+  USERS_LIST: '/api/users',
+  GET_USER_ROUTE: (id: string) => `/api/users/${id}`,
+  CREATE_USER: '/api/users',
+  UPDATE_USER_ROUTE: (id: string) => `/api/users/${id}`,
+  DELETE_USER_ROUTE: (id: string) => `/api/users/${id}`,
+  
+  // API Keys
+  GET_USER_API_KEYS_ROUTE: (userId: string) => `/api/users/${userId}/api-keys`,
+  CREATE_API_KEY_ROUTE: (userId: string) => `/api/users/${userId}/api-keys`,
+  DELETE_API_KEY_ROUTE: (keyId: string) => `/api/api-keys/${keyId}`,
+  
+  // Usage Metrics
+  GET_USER_METRICS_ROUTE: (userId: string) => `/api/users/${userId}/metrics`,
+  CREATE_METRIC: '/api/metrics',
+  USER_STATS: '/api/stats/users',
+} as const;
+```
+
+## 🚫 ANTI-PATTERNS TO AVOID
+
+### ❌ DON'T: Database calls in React components
+
+```tsx
+// ❌ WRONG - Don't do this
+const UsersScreen = () => {
+  const [users, setUsers] = useState([]);
+  
+  useEffect(() => {
+    // ❌ Don't fetch data in React components on initial load
+    supabase.from('users').select('*').then(setUsers);
+  }, []);
+  
+  return <div>...</div>;
+};
+```
+
+### ❌ DON'T: Authentication checks in React
+
+```tsx
+// ❌ WRONG - Don't do this
+const ProtectedComponent = () => {
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    // ❌ Don't check auth in React components
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      window.location.href = '/login';
+    }
+    setUser(currentUser);
+  }, []);
+  
+  return <div>...</div>;
+};
+```
+
+### ❌ DON'T: Server operations in client components
+
+```tsx
+// ❌ WRONG - Don't do this
+const UsersList = () => {
+  const loadUsers = async () => {
+    // ❌ Don't call server APIs directly on page load
+    const response = await serverApiService.get('/api/users');
+    // This should happen in .astro file
+  };
+  
+  return <div>...</div>;
+};
+```
+
+## ✅ CORRECT PATTERNS SUMMARY
+
+### 1. **Page Structure**
+```astro
+---
+// 1. Imports
+import Layout from "...";
+import Component from "...";
+
+// 2. Authentication
+const user = Astro.locals.user;
+if (!user) return Astro.redirect('/login');
+
+// 3. Authorization
+if (!hasPermission(user, 'feature.access')) {
+  return Astro.redirect('/dashboard');
+}
+
+// 4. Data Fetching
+const data = await serverApiService.get(endpoint, token);
+
+// 5. Error Handling
+if (!data.success) {
+  return Astro.redirect('/error');
+}
+---
+
+<Layout title="Page Title">
+  <Component data={data.data} user={user} client:load />
+</Layout>
+```
+
+### 2. **React Component Structure**
+```tsx
+interface Props {
+  // Server data
+  data: ServerData;
+  user: CurrentUser;
+}
+
+export const Component: React.FC<Props> = ({ data, user }) => {
+  // Client-side state only
+  const [uiState, setUiState] = useState();
+  
+  // Client-side mutations
+  const handleAction = async () => {
+    // API calls for mutations only
+    const response = await fetch('/api/endpoint', { method: 'POST' });
+    if (response.ok) {
+      // Redirect to refresh server data
+      window.location.reload();
+    }
+  };
+  
+  return <div>...</div>;
+};
+```
+
+### 3. **Data Flow**
+```
+1. .astro file: Server-side data fetching
+2. Props: Pass data to React components  
+3. React: Handle UI interactions and mutations
+4. Mutations: Client-side API calls
+5. Refresh: Redirect/reload to get fresh server data
+```
+
+This architecture ensures:
+- **Fast initial page loads** (server-side rendering)
+- **SEO-friendly** content
+- **Secure** authentication/authorization
+- **Clear separation** between server and client concerns
+- **Consistent** data flow patterns
+
+## 🚨 ERROR HANDLING PATTERN (MANDATORY)
+
+### Universal Error Component Strategy
+
+**RULE**: Never pass error props to main screen components. Always use conditional rendering with a dedicated ErrorScreen component.
+
+### ✅ CORRECT: Conditional Error Rendering
+
+```astro
+---
+// pages/admin/feature/index.astro
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import FeatureScreen from './_components/FeatureScreen.tsx';
+import ErrorScreen from '../../../components/ErrorScreen.tsx';
+
+let data = [];
+let hasError = false;
+let errorMessage = '';
+
+try {
+  const response = await fetchData();
+  if (response.error) {
+    hasError = true;
+    errorMessage = 'Failed to fetch data from database.';
+  } else {
+    data = response.data;
+  }
+} catch (error) {
+  hasError = true;
+  errorMessage = 'Unable to connect to database.';
+}
+---
+
+<DashboardLayout title="Feature - Admin">
+  {hasError ? (
+    <ErrorScreen 
+      title="Database Connection Error"
+      message={errorMessage}
+      description="Please check your configuration and try again."
+      showRetry={true}
+      showGoHome={true}
+      showGoBack={false}
+      client:load 
+    />
+  ) : (
+    <FeatureScreen 
+      data={data}
+      client:load 
+    />
+  )}
+</DashboardLayout>
+```
+
+### ❌ WRONG: Passing Error Props to Main Component
+
+```astro
+---
+// DON'T DO THIS
+let data = [];
+let hasError = false;
+let errorMessage = '';
+// ... error handling logic
+---
+
+<DashboardLayout title="Feature - Admin">
+  <FeatureScreen 
+    data={data}
+    hasError={hasError}        <!-- ❌ Don't pass error props -->
+    errorMessage={errorMessage}  <!-- ❌ Don't pass error props -->
+    client:load 
+  />
+</DashboardLayout>
+```
+
+### ErrorScreen Component Props
+
+```tsx
+interface ErrorScreenProps {
+  title?: string;           // Error title (default: "Something went wrong")
+  message?: string;         // Main error message
+  description?: string;     // Additional context/instructions
+  showRetry?: boolean;      // Show retry button (default: true)
+  showGoHome?: boolean;     // Show dashboard button (default: true)  
+  showGoBack?: boolean;     // Show back button (default: false)
+  onRetry?: () => void;     // Custom retry handler (default: page reload)
+  className?: string;       // Additional styling
+}
+```
+
+### Common Error Scenarios
+
+#### 1. Database Connection Errors
+```astro
+{hasError ? (
+  <ErrorScreen 
+    title="Database Connection Error"
+    message="Unable to connect to the database"
+    description="Please check your Supabase configuration and ensure the database is accessible."
+    showRetry={true}
+    showGoHome={true}
+    client:load 
+  />
+) : (
+  <MainScreen data={data} client:load />
+)}
+```
+
+#### 2. Authentication Errors
+```astro
+{!user ? (
+  <ErrorScreen 
+    title="Authentication Required"
+    message="You need to be logged in to access this page"
+    description="Please log in to continue."
+    showRetry={false}
+    showGoHome={false}
+    showGoBack={true}
+    onRetry={() => window.location.href = '/auth/login'}
+    client:load 
+  />
+) : (
+  <MainScreen user={user} data={data} client:load />
+)}
+```
+
+#### 3. Permission Errors
+```astro
+{!hasPermission ? (
+  <ErrorScreen 
+    title="Access Denied"
+    message="You don't have permission to access this resource"
+    description="Contact your administrator if you believe this is an error."
+    showRetry={false}
+    showGoHome={true}
+    showGoBack={true}
+    client:load 
+  />
+) : (
+  <MainScreen data={data} client:load />
+)}
+```
+
+#### 4. Data Not Found Errors
+```astro
+{!dataExists ? (
+  <ErrorScreen 
+    title="Resource Not Found"
+    message="The requested resource could not be found"
+    description="It may have been deleted or moved."
+    showRetry={true}
+    showGoHome={true}
+    showGoBack={true}
+    client:load 
+  />
+) : (
+  <MainScreen data={data} client:load />
+)}
+```
+
+### Error Handling Best Practices
+
+1. **Server-Side Error Detection**: Always handle errors in the Astro frontmatter
+2. **Specific Error Messages**: Provide clear, actionable error messages
+3. **Appropriate Actions**: Show relevant buttons (retry, home, back) based on error type
+4. **Clean Component Props**: Main components only receive successful data
+5. **Consistent Styling**: Use the same ErrorScreen component across all pages
+6. **User Experience**: Always provide a way for users to recover from errors
+
+### Error Types and Handling
+
+```astro
+---
+// Comprehensive error handling pattern
+let data = null;
+let hasError = false;
+let errorType = '';
+let errorMessage = '';
+let errorDescription = '';
+
+try {
+  // 1. Authentication check
+  const user = Astro.locals.user;
+  if (!user) {
+    hasError = true;
+    errorType = 'auth';
+    errorMessage = 'Authentication required';
+    errorDescription = 'Please log in to access this page.';
+  }
+  
+  // 2. Authorization check
+  else if (!hasPermission(user, 'feature.read')) {
+    hasError = true;
+    errorType = 'permission';
+    errorMessage = 'Access denied';
+    errorDescription = 'You don\'t have permission to access this resource.';
+  }
+  
+  // 3. Data fetching
+  else {
+    const response = await fetchData();
+    if (response.error) {
+      hasError = true;
+      errorType = 'database';
+      errorMessage = 'Database error';
+      errorDescription = 'Unable to fetch data from the database.';
+    } else if (!response.data || response.data.length === 0) {
+      hasError = true;
+      errorType = 'empty';
+      errorMessage = 'No data found';
+      errorDescription = 'There are no records to display.';
+    } else {
+      data = response.data;
+    }
+  }
+} catch (error) {
+  hasError = true;
+  errorType = 'system';
+  errorMessage = 'System error';
+  errorDescription = 'An unexpected error occurred.';
+}
+
+// Error configuration based on type
+const getErrorConfig = (type: string) => {
+  switch (type) {
+    case 'auth':
+      return { showRetry: false, showGoHome: false, showGoBack: true };
+    case 'permission':
+      return { showRetry: false, showGoHome: true, showGoBack: true };
+    case 'database':
+      return { showRetry: true, showGoHome: true, showGoBack: false };
+    case 'empty':
+      return { showRetry: true, showGoHome: true, showGoBack: true };
+    default:
+      return { showRetry: true, showGoHome: true, showGoBack: false };
+  }
+};
+
+const errorConfig = getErrorConfig(errorType);
+---
+
+<DashboardLayout title="Feature - Admin">
+  {hasError ? (
+    <ErrorScreen 
+      title={errorMessage}
+      message={errorDescription}
+      {...errorConfig}
+      client:load 
+    />
+  ) : (
+    <FeatureScreen 
+      data={data}
+      client:load 
+    />
+  )}
+</DashboardLayout>
+```
+
+This pattern ensures:
+- **Clean separation**: Error handling vs main functionality
+- **Consistent UX**: Same error component across all pages  
+- **Better maintainability**: Centralized error handling logic
+- **Type safety**: Main components only receive valid data
+- **User experience**: Clear error messages with recovery options
+
+## 🔄 GLOBAL COMPONENTS PATTERN (MANDATORY)
+
+### Reusable Component Strategy
+
+**RULE**: Create global components for any UI elements that are repeated across multiple pages or features. Avoid duplicating table, form, modal, or other complex UI patterns.
+
+### ✅ CORRECT: Global Component Structure
+
+```
+src/components/
+├── ui/                              # Shadcn UI base components
+│   ├── button.tsx
+│   ├── table.tsx
+│   ├── modal.tsx
+│   └── form.tsx
+│
+├── GlobalTable/                     # Global table components
+│   ├── DataTable.tsx               # Main reusable data table
+│   ├── DataTablePagination.tsx     # Pagination controls
+│   ├── DataTableFilters.tsx        # Filter components
+│   ├── DataTableActions.tsx        # Action buttons
+│   └── columns.tsx                 # Common column definitions
+│
+├── GlobalForm/                      # Global form components
+│   ├── DynamicForm.tsx             # Form builder component
+│   ├── FormField.tsx               # Reusable form fields
+│   ├── FileUploader.tsx            # File upload component
+│   ├── SearchableSelect.tsx        # Searchable dropdown
+│   └── validation.ts               # Form validation utilities
+│
+├── GlobalModal/                     # Global modal components
+│   ├── ConfirmationModal.tsx       # Confirmation dialogs
+│   ├── FormModal.tsx               # Modal with forms
+│   └── DetailModal.tsx             # Detail view modals
+│
+├── Graphs/                          # Chart components
+│   ├── AreaGraph.tsx
+│   ├── BarGraph.tsx
+│   └── PieGraph.tsx
+│
+└── [Feature]Components.tsx          # Single-purpose global components
+    ├── StatsCard.tsx
+    ├── UserAvatar.tsx
+    ├── StatusBadge.tsx
+    └── LoadingSpinner.tsx
+```
+
+### ✅ CORRECT: Global DataTable Implementation
+
+```tsx
+// src/components/GlobalTable/DataTable.tsx
+import React from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  type ColumnDef,
+  flexRender,
+} from '@tanstack/react-table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTablePagination } from './DataTablePagination';
+import { DataTableFilters } from './DataTableFilters';
+
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  searchKey?: string;
+  filterableColumns?: string[];
+  onRowClick?: (row: TData) => void;
+  loading?: boolean;
+  emptyMessage?: string;
+}
+
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  searchKey = 'name',
+  filterableColumns = [],
+  onRowClick,
+  loading = false,
+  emptyMessage = 'No results found.'
+}: DataTableProps<TData, TValue>) {
+  // Table implementation with all features
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  });
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <DataTableFilters 
+        table={table} 
+        searchKey={searchKey}
+        filterableColumns={filterableColumns}
+      />
+      
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow 
+                  key={row.id}
+                  onClick={() => onRowClick?.(row.original)}
+                  className={onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      
+      <DataTablePagination table={table} />
+    </div>
+  );
+}
+
+export default DataTable;
+```
+
+### ✅ CORRECT: Global DynamicForm Implementation
+
+```tsx
+// src/components/GlobalForm/DynamicForm.tsx
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { FormField as CustomFormField } from './FormField';
+
+export interface FormFieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'password' | 'textarea' | 'select' | 'checkbox' | 'file';
+  placeholder?: string;
+  required?: boolean;
+  options?: { value: string; label: string }[];
+  validation?: z.ZodType<any>;
+}
+
+interface DynamicFormProps {
+  fields: FormFieldConfig[];
+  onSubmit: (data: any) => Promise<void>;
+  defaultValues?: Record<string, any>;
+  submitText?: string;
+  loading?: boolean;
+  className?: string;
+}
+
+export const DynamicForm: React.FC<DynamicFormProps> = ({
+  fields,
+  onSubmit,
+  defaultValues = {},
+  submitText = 'Submit',
+  loading = false,
+  className
+}) => {
+  // Create dynamic schema from field configurations
+  const schema = z.object(
+    fields.reduce((acc, field) => {
+      acc[field.name] = field.validation || z.string().optional();
+      if (field.required) {
+        acc[field.name] = acc[field.name].min(1, `${field.label} is required`);
+      }
+      return acc;
+    }, {} as Record<string, z.ZodType<any>>)
+  );
+
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues,
+  });
+
+  const handleSubmit = async (data: any) => {
+    try {
+      await onSubmit(data);
+      form.reset();
+    } catch (error) {
+      console.error('Form submission error:', error);
+    }
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className={className}>
+        <div className="space-y-4">
+          {fields.map((fieldConfig) => (
+            <FormField
+              key={fieldConfig.name}
+              control={form.control}
+              name={fieldConfig.name}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{fieldConfig.label}</FormLabel>
+                  <FormControl>
+                    <CustomFormField
+                      {...field}
+                      type={fieldConfig.type}
+                      placeholder={fieldConfig.placeholder}
+                      options={fieldConfig.options}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ))}
+        </div>
+        
+        <div className="flex justify-end mt-6">
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Submitting...' : submitText}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+};
+
+export default DynamicForm;
+```
+
+### ✅ CORRECT: Usage in Astro Pages
+
+```astro
+---
+// pages/admin/users/index.astro
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import UsersScreen from './_components/UsersScreen.tsx';
+// Import global components
+import DataTable from '../../../components/GlobalTable/DataTable.tsx';
+import DynamicForm from '../../../components/GlobalForm/DynamicForm.tsx';
+
+// Server-side data fetching
+const users = await fetchUsers();
+const userColumns = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'status', header: 'Status' },
+];
+---
+
+<DashboardLayout title="Users - Admin">
+  <UsersScreen 
+    users={users}
+    client:load 
+  />
+</DashboardLayout>
+```
+
+```tsx
+// pages/admin/users/_components/UsersScreen.tsx
+import React from 'react';
+import DataTable from '@/components/GlobalTable/DataTable';
+import DynamicForm from '@/components/GlobalForm/DynamicForm';
+import { userColumns } from './columns';
+
+export const UsersScreen: React.FC<UsersScreenProps> = ({ users }) => {
+  const handleCreateUser = async (data: any) => {
+    // Handle user creation
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    
+    if (response.ok) {
+      window.location.reload(); // Refresh server data
+    }
+  };
+
+  const createUserFields = [
+    { name: 'name', label: 'Name', type: 'text', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'role', label: 'Role', type: 'select', required: true, 
+      options: [
+        { value: 'user', label: 'User' },
+        { value: 'admin', label: 'Admin' }
+      ]
+    }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Users</h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button>Add User</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+            </DialogHeader>
+            <DynamicForm
+              fields={createUserFields}
+              onSubmit={handleCreateUser}
+              submitText="Create User"
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <DataTable
+        columns={userColumns}
+        data={users}
+        searchKey="name"
+        filterableColumns={['status', 'role']}
+        onRowClick={(user) => console.log('User clicked:', user)}
+        emptyMessage="No users found."
+      />
+    </div>
+  );
+};
+```
+
+### Global Component Benefits
+
+1. **DRY Principle**: Don't repeat table/form logic across pages
+2. **Consistent UX**: Same behavior and styling everywhere
+3. **Maintainability**: Update once, applies everywhere
+4. **Type Safety**: Shared interfaces and validation
+5. **Performance**: Reusable components are more efficient
+6. **Testing**: Test once, works everywhere
+
+### When to Create Global Components
+
+**✅ CREATE GLOBAL COMPONENTS FOR:**
+- Tables with pagination, sorting, filtering
+- Forms with validation and submission
+- Modals with consistent behavior
+- Charts and graphs
+- Status badges and indicators
+- Loading states and spinners
+- Any UI pattern used 3+ times
+
+**❌ DON'T CREATE GLOBAL COMPONENTS FOR:**
+- Highly specific business logic
+- One-off custom layouts
+- Page-specific interactions
+- Components unlikely to be reused
+
+### Component Naming Convention
+
+```
+GlobalTable/DataTable.tsx          ✅ Clear purpose
+GlobalForm/DynamicForm.tsx         ✅ Clear purpose
+UserSpecificComponent.tsx          ❌ Too specific
+GenericComponent.tsx               ❌ Too vague
+components/tables/UserTable.tsx    ❌ Feature-specific in global
+```
+
+This pattern ensures consistent, maintainable, and reusable UI components across your entire application.
+
+## 📊 IMPROVED GLOBAL DATATABLE USAGE
+
+### Enhanced DataTable Component Features
+
+The improved DataTable component provides:
+- **Mobile-responsive design** with adaptive UI
+- **Advanced filtering** with multiple column filters and date ranges
+- **Column visibility controls** with show/hide functionality
+- **Flexible column definitions** supporting both static arrays and functions
+- **Performance optimizations** with React.memo and useMemo
+- **TypeScript support** with full type safety
+- **Customizable search** with global and column-specific filtering
+
+### ✅ CORRECT: Basic Usage
+
+```astro
+---
+// pages/admin/users/index.astro
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import UsersScreen from './_components/UsersScreen.tsx';
+import { supabase } from '@/lib/supabase';
+
+// Server-side data fetching
+const { data: users, error } = await supabase
+  .from('users')
+  .select('*')
+  .order('created_at', { ascending: false });
+---
+
+<DashboardLayout title="Users - Admin">
+  {error ? (
+    <ErrorScreen 
+      title="Database Error"
+      message="Failed to load users"
+      client:load 
+    />
+  ) : (
+    <UsersScreen 
+      users={users || []}
+      client:load 
+    />
+  )}
+</DashboardLayout>
+```
+
+### ✅ CORRECT: React Component Implementation
+
+```tsx
+// pages/admin/users/_components/UsersScreen.tsx
+import React, { useMemo } from 'react';
+import { DataTable } from '@/components/GlobalTable';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import type { ColumnDef } from '@tanstack/react-table';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  status: 'active' | 'inactive' | 'suspended';
+  created_at: string;
+  last_login_at: string;
+}
+
+interface UsersScreenProps {
+  users: User[];
+}
+
+export const UsersScreen: React.FC<UsersScreenProps> = ({ users }) => {
+  // Define columns with proper typing
+  const columns = useMemo<ColumnDef<User>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue('name')}</div>
+      ),
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <div className="text-muted-foreground">{row.getValue('email')}</div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue('status') as string;
+        return (
+          <Badge variant={status === 'active' ? 'default' : 'secondary'}>
+            {status}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'created_at',
+      header: 'Created',
+      cell: ({ row }) => {
+        const date = new Date(row.getValue('created_at'));
+        return <div>{date.toLocaleDateString()}</div>;
+      },
+    },
+    {
+      accessorKey: 'last_login_at',
+      header: 'Last Login',
+      cell: ({ row }) => {
+        const date = row.getValue('last_login_at');
+        return date ? new Date(date).toLocaleDateString() : 'Never';
+      },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline">
+            Edit
+          </Button>
+          <Button size="sm" variant="destructive">
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ], []);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Users</h1>
+          <p className="text-muted-foreground">Manage system users</p>
+        </div>
+        <Button>Add User</Button>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={users}
+        filterFields={['status', 'name']}
+        datePickers={['created_at', 'last_login_at']}
+        searchKey="name"
+        pageSize={20}
+        enableRowSelection={false}
+        enableColumnVisibility={true}
+        emptyMessage="No users found."
+        onRowClick={(user) => console.log('User clicked:', user)}
+      />
+    </div>
+  );
+};
+
+export default UsersScreen;
+```
+
+### ✅ CORRECT: Advanced Usage with Dynamic Columns
+
+```tsx
+// For cases where columns need access to functions or state
+export const AdvancedUsersScreen: React.FC<UsersScreenProps> = ({ users }) => {
+  const [selectedUsers, setSelectedUsers] = React.useState<string[]>([]);
+
+  const handleMarkAsPaid = (userId: string) => {
+    // Handle marking user as paid
+    console.log('Mark as paid:', userId);
+  };
+
+  const handleBulkDelete = (userIds: string[]) => {
+    // Handle bulk delete
+    console.log('Bulk delete:', userIds);
+  };
+
+  // Dynamic columns function that receives helpers
+  const createColumns = (helpers: { markAsPaid: (id: string) => void }) => [
+    {
+      id: 'select',
+      header: ({ table }) => (
+        <input
+          type="checkbox"
+          checked={table.getIsAllPageRowsSelected()}
+          onChange={(e) => table.toggleAllPageRowsSelected(e.target.checked)}
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          checked={row.getIsSelected()}
+          onChange={(e) => row.toggleSelected(e.target.checked)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: 'Name',
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue('status') as string;
+        return (
+          <Badge variant={status === 'active' ? 'default' : 'secondary'}>
+            {status}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <Button 
+          size="sm" 
+          onClick={() => helpers.markAsPaid(row.original.id)}
+        >
+          Mark as Paid
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Users</h1>
+        <div className="flex gap-2">
+          {selectedUsers.length > 0 && (
+            <Button 
+              variant="destructive"
+              onClick={() => handleBulkDelete(selectedUsers)}
+            >
+              Delete Selected ({selectedUsers.length})
+            </Button>
+          )}
+          <Button>Add User</Button>
+        </div>
+      </div>
+
+      <DataTable
+        columns={createColumns}
+        data={users}
+        columnHelpers={{ markAsPaid: handleMarkAsPaid }}
+        filterFields={['status']}
+        datePickers={['created_at']}
+        hiddenColumns={['email']}
+        enableRowSelection={true}
+        onRowClick={(user) => console.log('User clicked:', user)}
+      />
+    </div>
+  );
+};
+```
+
+### ✅ CORRECT: Mobile-Optimized Configuration
+
+```tsx
+// Optimized for mobile with fewer columns and simplified filters
+const MobileUsersScreen: React.FC<UsersScreenProps> = ({ users }) => {
+  const mobileColumns = useMemo<ColumnDef<User>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'User',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.getValue('name')}</div>
+          <div className="text-sm text-muted-foreground">
+            {row.getValue('email')}
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge variant={row.getValue('status') === 'active' ? 'default' : 'secondary'}>
+          {row.getValue('status')}
+        </Badge>
+      ),
+    },
+  ], []);
+
+  return (
+    <DataTable
+      columns={mobileColumns}
+      data={users}
+      filterFields={['status']} // Fewer filters for mobile
+      searchKey="name"
+      pageSize={10} // Smaller page size for mobile
+      enableColumnVisibility={false} // Disable on mobile
+      className="mobile-optimized"
+    />
+  );
+};
+```
+
+### DataTable Props Reference
+
+```tsx
+interface DataTableProps<TData, TValue = unknown> {
+  // Required
+  columns: ColumnDef<TData, TValue>[] | ((helpers?: any) => ColumnDef<TData, TValue>[]);
+  data: TData[];
+  
+  // Filtering & Search
+  filterFields?: string[];           // Columns to show filter dropdowns for
+  datePickers?: string[];           // Columns to show date range pickers for
+  searchKey?: string;               // Placeholder text for search (default: 'name')
+  
+  // Display Options
+  hiddenColumns?: string[];         // Columns to hide by default
+  pageSize?: number;                // Rows per page (default: 10)
+  emptyMessage?: string;            // Message when no data (default: 'No results found.')
+  
+  // Functionality
+  enableRowSelection?: boolean;     // Enable checkbox selection (default: false)
+  enableColumnVisibility?: boolean; // Enable column show/hide (default: true)
+  onRowClick?: (row: TData) => void; // Handle row clicks
+  
+  // State
+  isLoading?: boolean;              // Show loading state (default: false)
+  
+  // Styling
+  className?: string;               // Additional CSS classes
+  
+  // Advanced
+  columnHelpers?: Record<string, any>; // Helpers passed to column functions
+}
+```
+
+### Performance Best Practices
+
+1. **Memoize Columns**: Always wrap column definitions in `useMemo`
+2. **Optimize Data**: Pre-process data server-side when possible
+3. **Limit Page Size**: Use appropriate page sizes (10-50 rows)
+4. **Selective Filtering**: Only enable filters for columns that need them
+5. **Mobile Considerations**: Use fewer columns and simpler layouts on mobile
+
+### Common Use Cases
+
+#### 1. Simple Data Display
+```tsx
+<DataTable
+  columns={basicColumns}
+  data={data}
+  searchKey="name"
+/>
+```
+
+#### 2. Advanced Filtering
+```tsx
+<DataTable
+  columns={columns}
+  data={data}
+  filterFields={['status', 'category', 'priority']}
+  datePickers={['created_at', 'updated_at']}
+  searchKey="title"
+/>
+```
+
+#### 3. Bulk Operations
+```tsx
+<DataTable
+  columns={selectableColumns}
+  data={data}
+  enableRowSelection={true}
+  onRowClick={handleRowClick}
+/>
+```
+
+#### 4. Custom Actions
+```tsx
+<DataTable
+  columns={(helpers) => createColumnsWithActions(helpers)}
+  data={data}
+  columnHelpers={{ 
+    onEdit: handleEdit,
+    onDelete: handleDelete,
+    onMarkAsPaid: handleMarkAsPaid 
+  }}
+/>
+```
+
+This improved DataTable component provides a robust, flexible, and mobile-friendly solution for all table needs in your application.
+
+## 🚫 NO SCREEN / 404 PATTERN (MANDATORY)
+
+### Missing Page Strategy
+
+**RULE**: For navigation items that don't have implemented pages yet, use the NoScreen component to provide a consistent "coming soon" experience.
+
+### ✅ CORRECT: NoScreen Component Usage
+
+```astro
+---
+// pages/admin/feature.astro
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import NoScreen from '../../components/NoScreen.tsx';
+---
+
+<DashboardLayout title="Feature - MayaResearch Admin">
+  <NoScreen 
+    title="Feature Name"
+    message="This page is coming soon"
+    description="Detailed description of what this page will contain when implemented."
+    showGoHome={true}
+    showGoBack={true}
+    client:load 
+  />
+</DashboardLayout>
+```
+
+### NoScreen Component Props
+
+```tsx
+interface NoScreenProps {
+  title?: string;           // Page title (default: "Page Not Found")
+  message?: string;         // Main message (default: "This page is not available yet")
+  description?: string;     // Additional context about the page
+  showGoHome?: boolean;     // Show dashboard button (default: true)
+  showGoBack?: boolean;     // Show back button (default: true)
+  className?: string;       // Additional styling
+}
+```
+
+### Common NoScreen Scenarios
+
+#### 1. Feature Under Development
+```astro
+<NoScreen 
+  title="Analytics Dashboard"
+  message="Analytics coming soon"
+  description="Advanced analytics and reporting features are currently being developed."
+  client:load 
+/>
+```
+
+#### 2. API Management Pages
+```astro
+<NoScreen 
+  title="API Keys Management"
+  message="This page is coming soon"
+  description="The API Keys management interface is currently under development. You can manage API keys through the Users section for now."
+  client:load 
+/>
+```
+
+#### 3. Settings Pages
+```astro
+<NoScreen 
+  title="Settings"
+  message="Settings page coming soon"
+  description="System settings, configuration options, and preferences will be available here."
+  client:load 
+/>
+```
+
+### Dashboard Navigation Best Practices
+
+1. **Create Placeholder Pages**: Always create .astro files for navigation items
+2. **Consistent Experience**: Use NoScreen for unimplemented features
+3. **Clear Communication**: Explain what the page will contain
+4. **Navigation Options**: Always provide ways to go back or return to dashboard
+5. **Progressive Development**: Replace NoScreen with actual implementation when ready
+
+### Implementation Checklist
+
+- [ ] Create .astro file for each navigation item
+- [ ] Use NoScreen component for unimplemented pages
+- [ ] Provide clear title and description
+- [ ] Enable appropriate navigation options
+- [ ] Test that sidebar navigation works without errors
+- [ ] Replace with actual implementation when feature is ready
+
+This pattern ensures users never encounter broken links or empty pages in the dashboard navigation.

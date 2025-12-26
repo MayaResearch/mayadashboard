@@ -1,0 +1,285 @@
+---
+title: TypeScript Best Practices
+description: TypeScript strict mode rules and best practices for Maya Research project
+tags: [typescript, strict-mode, type-safety]
+alwaysApply: true
+---
+
+# TypeScript Rules
+
+## Core Principles
+
+1. **Strict Type Safety**: Always use TypeScript strict mode
+2. **No Implicit Any**: Never use `any` types - use `unknown` or proper types
+3. **Explicit Return Types**: All functions must have explicit return types
+4. **Type Imports**: Use type-only imports when importing types
+
+## Type Safety Rules
+
+### ❌ Don't
+
+```typescript
+// Implicit any
+function processData(data) {
+  return data.value;
+}
+
+// Using any type
+const result: any = fetchData();
+
+// Missing return type
+function calculateTotal(items) {
+  return items.reduce((sum, item) => sum + item.price, 0);
+}
+```
+
+### ✅ Do
+
+```typescript
+// Explicit types
+function processData(data: DataType): string {
+  return data.value;
+}
+
+// Use proper types instead of any
+const result: FetchResult = fetchData();
+
+// Explicit return types
+function calculateTotal(items: Item[]): number {
+  return items.reduce((sum, item) => sum + item.price, 0);
+}
+
+// Use unknown for truly unknown types
+function handleError(error: unknown): void {
+  if (error instanceof Error) {
+    console.error(error.message);
+  }
+}
+```
+
+## Interface vs Type
+
+### Prefer Interfaces for Object Shapes
+
+```typescript
+// ✅ Good - Use interfaces for object structures
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+// ✅ Good - Use type for unions, intersections, and primitives
+type Status = 'pending' | 'active' | 'inactive';
+type ID = string | number;
+```
+
+## Type Imports
+
+```typescript
+// ✅ Use type-only imports
+import type { User, Post } from './types';
+import { fetchUser } from './api';
+
+// ✅ Inline type imports
+import { type User, fetchUser } from './userService';
+```
+
+## Null Safety
+
+```typescript
+// ✅ Use optional chaining
+const userName = user?.profile?.name;
+
+// ✅ Use nullish coalescing
+const displayName = user?.name ?? 'Anonymous';
+
+// ✅ Type guards for null checks
+function isValidUser(user: User | null): user is User {
+  return user !== null && user.id !== undefined;
+}
+```
+
+## Generic Types
+
+```typescript
+// ✅ Use generics for reusable type-safe functions
+function fetchData<T>(url: string): Promise<T> {
+  return fetch(url).then(res => res.json());
+}
+
+// ✅ Constrained generics
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+```
+
+## Astro-Specific TypeScript
+
+### Component Props
+
+```typescript
+---
+// ✅ Define props interface
+interface Props {
+  title: string;
+  description?: string;
+  items: Array<string>;
+}
+
+const { title, description = 'Default description', items } = Astro.props;
+---
+```
+
+### Type-Safe API Responses
+
+```typescript
+// types.ts
+export interface ApiResponse<T> {
+  data: T;
+  status: number;
+  message: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+// api.ts
+import type { ApiResponse, User } from './types';
+
+async function getUser(id: string): Promise<ApiResponse<User>> {
+  const response = await fetch(`/api/users/${id}`);
+  return response.json();
+}
+```
+
+## TSConfig Requirements
+
+Ensure your `tsconfig.json` includes:
+
+```json
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Error Handling
+
+```typescript
+// ✅ Type-safe error handling
+type Result<T, E = Error> = 
+  | { success: true; data: T }
+  | { success: false; error: E };
+
+async function fetchUserData(id: string): Promise<Result<User>> {
+  try {
+    const response = await fetch(`/api/users/${id}`);
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error : new Error('Unknown error') 
+    };
+  }
+}
+
+// Usage
+const result = await fetchUserData('123');
+if (result.success) {
+  console.log(result.data.name); // TypeScript knows data exists
+} else {
+  console.error(result.error.message); // TypeScript knows error exists
+}
+```
+
+## Utility Types
+
+```typescript
+// ✅ Use TypeScript utility types
+type PartialUser = Partial<User>;
+type ReadonlyUser = Readonly<User>;
+type UserWithoutId = Omit<User, 'id'>;
+type UserIdAndName = Pick<User, 'id' | 'name'>;
+```
+
+## Enums vs Union Types
+
+```typescript
+// ✅ Prefer const objects with 'as const' over enums
+const UserRole = {
+  ADMIN: 'admin',
+  USER: 'user',
+  GUEST: 'guest',
+} as const;
+
+type UserRole = typeof UserRole[keyof typeof UserRole];
+
+// ❌ Avoid enums (they generate runtime code)
+enum UserRoleEnum {
+  ADMIN = 'admin',
+  USER = 'user',
+  GUEST = 'guest',
+}
+```
+
+## Type Assertions
+
+```typescript
+// ⚠️ Use type assertions sparingly
+const element = document.getElementById('root') as HTMLDivElement;
+
+// ✅ Better - use type guards
+function isHTMLDivElement(element: HTMLElement | null): element is HTMLDivElement {
+  return element !== null && element.tagName === 'DIV';
+}
+
+const element = document.getElementById('root');
+if (isHTMLDivElement(element)) {
+  // TypeScript knows element is HTMLDivElement here
+  element.style.display = 'block';
+}
+```
+
+## Array and Object Types
+
+```typescript
+// ✅ Use Array<T> or T[] for arrays
+const numbers: Array<number> = [1, 2, 3];
+const strings: string[] = ['a', 'b', 'c'];
+
+// ✅ Use Record for object maps
+const userMap: Record<string, User> = {
+  '1': { id: '1', name: 'Alice', email: 'alice@example.com' },
+  '2': { id: '2', name: 'Bob', email: 'bob@example.com' },
+};
+
+// ✅ Use readonly for immutable arrays/tuples
+const coordinates: readonly [number, number] = [10, 20];
+```
+
+## Summary Checklist
+
+- [ ] All functions have explicit return types
+- [ ] No `any` types in the codebase
+- [ ] Use `type` imports for type-only imports
+- [ ] Proper null/undefined handling with optional chaining
+- [ ] Type guards for complex type checks
+- [ ] Interfaces for object shapes
+- [ ] Union types for string literals
+- [ ] Generic types for reusable functions
+- [ ] Proper error handling with typed results
+- [ ] TSConfig strict mode enabled

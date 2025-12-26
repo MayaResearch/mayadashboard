@@ -1,0 +1,49 @@
+---
+export interface Props {
+  baseUrl: string;
+  currentRange: string;
+  preserveParams?: Record<string, string>;
+}
+
+const { baseUrl, currentRange, preserveParams = {} } = Astro.props;
+
+const ranges = [
+  { value: 'today', label: 'Today' },
+  { value: '7days', label: 'Last 7 Days' },
+  { value: '14days', label: 'Last 14 Days' },
+  { value: '30days', label: 'Last 30 Days' },
+  { value: 'all', label: 'All Time' },
+];
+
+function buildUrl(range: string) {
+  const url = new URL(baseUrl, Astro.url.origin);
+  url.searchParams.set('range', range);
+  url.searchParams.set('page', '1'); // Reset to page 1 when changing range
+  
+  // Preserve other params like sort and order
+  for (const [key, value] of Object.entries(preserveParams)) {
+    if (value && key !== 'range' && key !== 'page') {
+      url.searchParams.set(key, value);
+    }
+  }
+  
+  return url.pathname + url.search;
+}
+---
+
+<div class="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+  {ranges.map((range) => (
+    <a
+      href={buildUrl(range.value)}
+      class:list={[
+        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+        currentRange === range.value
+          ? "bg-foreground text-background shadow-sm"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+      ]}
+    >
+      {range.label}
+    </a>
+  ))}
+</div>
+

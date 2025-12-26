@@ -1,0 +1,233 @@
+---
+title: shadcn/ui Component Guidelines
+description: Rules for using shadcn/ui components - always use CLI commands, never manually add components
+tags: [shadcn, ui, components, react]
+alwaysApply: true
+---
+
+# shadcn/ui Component Rules
+
+## 🎯 Core Principle
+
+**ALWAYS use the shadcn CLI to add components. NEVER manually copy/paste component code.**
+
+---
+
+## ⚡ Adding Components
+
+### ✅ ALWAYS Use CLI Commands
+
+When you need a shadcn/ui component, run the CLI command:
+
+```bash
+# Add a single component
+npx shadcn@latest add button
+
+# Add multiple components at once
+npx shadcn@latest add button card dialog
+
+# Add with dependencies automatically resolved
+npx shadcn@latest add form
+```
+
+### ❌ NEVER Do This
+
+```typescript
+// ❌ NEVER manually create shadcn component files
+// ❌ NEVER copy code from shadcn website into your project
+// ❌ NEVER modify component source directly in components/ui/
+
+// The CLI handles:
+// - Proper file structure
+// - Dependency installation
+// - Correct imports
+// - Theme configuration
+```
+
+---
+
+## 📋 Common Component Commands
+
+```bash
+# Layout & Structure
+npx shadcn@latest add card
+npx shadcn@latest add separator
+npx shadcn@latest add aspect-ratio
+npx shadcn@latest add scroll-area
+npx shadcn@latest add resizable
+
+# Forms & Input
+npx shadcn@latest add button
+npx shadcn@latest add input
+npx shadcn@latest add textarea
+npx shadcn@latest add checkbox
+npx shadcn@latest add radio-group
+npx shadcn@latest add switch
+npx shadcn@latest add select
+npx shadcn@latest add slider
+npx shadcn@latest add form
+npx shadcn@latest add calendar
+npx shadcn@latest add date-picker
+
+# Feedback & Overlay
+npx shadcn@latest add dialog
+npx shadcn@latest add alert-dialog
+npx shadcn@latest add sheet
+npx shadcn@latest add drawer
+npx shadcn@latest add toast
+npx shadcn@latest add sonner
+npx shadcn@latest add tooltip
+npx shadcn@latest add popover
+npx shadcn@latest add hover-card
+npx shadcn@latest add alert
+
+# Navigation
+npx shadcn@latest add navigation-menu
+npx shadcn@latest add menubar
+npx shadcn@latest add dropdown-menu
+npx shadcn@latest add context-menu
+npx shadcn@latest add tabs
+npx shadcn@latest add breadcrumb
+npx shadcn@latest add pagination
+npx shadcn@latest add command
+
+# Data Display
+npx shadcn@latest add table
+npx shadcn@latest add data-table
+npx shadcn@latest add avatar
+npx shadcn@latest add badge
+npx shadcn@latest add progress
+npx shadcn@latest add skeleton
+npx shadcn@latest add accordion
+npx shadcn@latest add collapsible
+npx shadcn@latest add carousel
+
+# Typography
+npx shadcn@latest add label
+```
+
+---
+
+## 🔧 Initial Setup
+
+Before using shadcn/ui, initialize it in your project:
+
+```bash
+# Initialize shadcn/ui (run once per project)
+npx shadcn@latest init
+```
+
+This will:
+- Create `components.json` configuration
+- Set up the `components/ui` directory
+- Configure CSS variables for theming
+- Install required dependencies
+
+---
+
+## 📁 File Structure
+
+After running CLI commands, components are added to:
+
+```
+src/
+└── components/
+    └── ui/
+        ├── button.tsx      # Added via: npx shadcn@latest add button
+        ├── card.tsx        # Added via: npx shadcn@latest add card
+        ├── dialog.tsx      # Added via: npx shadcn@latest add dialog
+        └── ...
+```
+
+---
+
+## 🎨 Customization
+
+### Customize Via Variants (Preferred)
+
+```tsx
+// ✅ GOOD: Use variant props for styling
+<Button variant="destructive">Delete</Button>
+<Button variant="outline" size="sm">Small Button</Button>
+<Badge variant="secondary">Status</Badge>
+```
+
+### Extend With className (When Needed)
+
+```tsx
+// ✅ GOOD: Use className for additional styling
+<Button className="w-full mt-4">Full Width Button</Button>
+<Card className="bg-gradient-to-r from-purple-500 to-pink-500">
+  Custom Card
+</Card>
+```
+
+### Create Wrapper Components (For Custom Variants)
+
+```tsx
+// ✅ GOOD: Create wrappers for reusable custom components
+// src/components/custom/PrimaryButton.tsx
+import { Button, ButtonProps } from "@/components/ui/button";
+
+export function PrimaryButton({ children, ...props }: ButtonProps) {
+  return (
+    <Button 
+      className="bg-brand-primary hover:bg-brand-primary/90" 
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+}
+```
+
+---
+
+## ⚠️ Important Rules
+
+1. **Run CLI First** - Before importing any shadcn component, ensure you've run the add command
+2. **Don't Edit ui/ Directly** - Treat `components/ui/` as generated code; create wrappers instead
+3. **Check components.json** - Ensure your configuration matches your project setup
+4. **Update Regularly** - Run `npx shadcn@latest add <component>` to update existing components
+
+---
+
+## 🚨 Common Mistakes
+
+| Mistake | Why It's Wrong | Correct Approach |
+|---------|----------------|------------------|
+| Copy-pasting from docs | Missing dependencies, wrong structure | `npx shadcn@latest add <component>` |
+| Editing files in `ui/` | Changes lost on updates | Create wrapper components |
+| Manual npm installs | Missing peer deps, wrong versions | CLI handles dependencies |
+| Skipping `init` | Missing config, broken paths | Run `npx shadcn@latest init` first |
+
+---
+
+## 📋 Workflow Checklist
+
+When adding a new shadcn component:
+
+- [ ] Check if component is already added (`src/components/ui/`)
+- [ ] Run `npx shadcn@latest add <component-name>`
+- [ ] Wait for CLI to complete and install dependencies
+- [ ] Import from `@/components/ui/<component>`
+- [ ] Use component with appropriate variants/props
+- [ ] Create wrapper if custom styling needed
+
+---
+
+## 💡 Pro Tips
+
+```bash
+# See all available components
+npx shadcn@latest add
+
+# Add all components at once (not recommended for production)
+npx shadcn@latest add --all
+
+# Use specific style
+npx shadcn@latest init --style new-york
+
+# Check what would be added without adding
+npx shadcn@latest diff button
+```

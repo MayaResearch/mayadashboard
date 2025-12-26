@@ -1,0 +1,224 @@
+---
+export const prerender = false;
+
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { getDeviceById, getSessionsByDeviceId, getDeviceMap } from "../../lib/db";
+import { getPayments, formatAmount, formatDate, getStatusColor } from "../../lib/razorpay";
+
+const { deviceId } = Astro.params;
+
+if (!deviceId) {
+  return Astro.redirect('/devices');
+}
+
+// Fetch all data in parallel
+const [device, sessions, deviceMap, paymentsData] = await Promise.all([
+  getDeviceById(deviceId),
+  getSessionsByDeviceId(deviceId, 50),
+  getDeviceMap(),
+  getPayments(100, 0)
+]);
+
+// Get device name
+const deviceMapEntry = deviceMap.find(d => d.device_id === deviceId);
+const deviceName = deviceMapEntry?.device_name || null;
+
+// Filter payments for this device
+const devicePayments = paymentsData.items.filter(p => p.notes?.device_id === deviceId);
+
+// Calculate stats
+const totalGenerations = sessions.reduce((sum, s) => sum + (s.total_generations || 0), 0);
+const totalDuration = sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
+const capturedPayments = devicePayments.filter(p => p.status === 'captured');
+const totalSpent = capturedPayments.reduce((sum, p) => sum + p.amount, 0);
+---
+
+<DashboardLayout title={deviceName || `Device ${deviceId}`} activePage="devices">
+  <div class="space-y-6">
+    <!-- Back Button -->
+    <a href="/devices" class="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+      </svg>
+      Back to Devices
+    </a>
+
+    <!-- Device Header -->
+    <div class="bg-card border border-border rounded-xl p-6">
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-4">
+          <div class:list={[
+            "w-16 h-16 rounded-xl flex items-center justify-center",
+            deviceName ? "bg-foreground text-background" : "bg-muted"
+          ]}>
+            <span class="text-2xl font-bold">
+              {deviceName ? deviceName.charAt(0).toUpperCase() : "D"}
+            </span>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold">{deviceName || "Unnamed Device"}</h1>
+            <p class="text-sm text-muted-foreground font-mono mt-1">{deviceId}</p>
+            <div class="flex items-center gap-3 mt-2">
+              {device && (
+                <>
+                  <span class:list={[
+                    "inline-flex items-center text-xs px-2 py-1 rounded-full border font-medium",
+                    device.user_type === 'premium_user' 
+                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                      : "bg-gray-500/10 text-gray-600 border-gray-500/20"
+                  ]}>
+                    {device.user_type?.replace('_', ' ') || 'unknown'}
+                  </span>
+                  <span class="text-xs text-muted-foreground">
+                    {device.images_limit} images limit
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        {device && (
+          <div class="text-right">
+            <p class="text-sm text-muted-foreground">Registered</p>
+            <p class="text-sm font-medium">
+              {new Date(device.created_at * 1000).toLocaleDateString('en-IN', { dateStyle: 'long', timeZone: 'Asia/Kolkata' })}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Sessions</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{sessions.length}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Generations</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{totalGenerations}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Duration</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{Math.round(totalDuration / 60)}m</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Spent</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight text-emerald-600">{formatAmount(totalSpent)}</p>
+      </div>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Payments for this device -->
+      <div class="bg-card border border-border rounded-xl">
+        <div class="p-4 border-b border-border">
+          <h2 class="font-semibold">Payment History</h2>
+          <p class="text-sm text-muted-foreground mt-1">{devicePayments.length} payments found</p>
+        </div>
+        {devicePayments.length > 0 ? (
+          <div class="divide-y divide-border max-h-[400px] overflow-auto">
+            {devicePayments.map((payment) => (
+              <div class="p-4 flex items-center gap-4">
+                <div class:list={[
+                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                  payment.status === 'captured' ? "bg-emerald-500/10" : "bg-red-500/10"
+                ]}>
+                  <svg class:list={[
+                    "w-5 h-5",
+                    payment.status === 'captured' ? "text-emerald-600" : "text-red-500"
+                  ]} fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    {payment.status === 'captured' ? (
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    ) : (
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    )}
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class:list={[
+                      "text-xs px-2 py-0.5 rounded-full border font-medium",
+                      getStatusColor(payment.status)
+                    ]}>
+                      {payment.status}
+                    </span>
+                    <span class="text-xs text-muted-foreground capitalize">{payment.method}</span>
+                  </div>
+                  <p class="text-xs text-muted-foreground mt-1">
+                    {payment.email && payment.email !== 'user@maya.ai' ? payment.email : payment.contact || "No contact"}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm font-semibold">{formatAmount(payment.amount)}</p>
+                  <p class="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="p-8 text-center">
+            <svg class="w-12 h-12 text-muted-foreground mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+            </svg>
+            <p class="text-sm text-muted-foreground">No payments found for this device</p>
+          </div>
+        )}
+      </div>
+
+      <!-- Sessions for this device -->
+      <div class="bg-card border border-border rounded-xl">
+        <div class="p-4 border-b border-border">
+          <h2 class="font-semibold">Recent Sessions</h2>
+          <p class="text-sm text-muted-foreground mt-1">{sessions.length} sessions found</p>
+        </div>
+        {sessions.length > 0 ? (
+          <div class="divide-y divide-border max-h-[400px] overflow-auto">
+            {sessions.slice(0, 20).map((session) => (
+              <div class="p-4 flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs font-medium font-mono">{session.session_id}</p>
+                    <span class:list={[
+                      "text-xs px-2 py-0.5 rounded-full border font-medium",
+                      session.status === 'completed' 
+                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                        : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                    ]}>
+                      {session.status}
+                    </span>
+                  </div>
+                  <p class="text-xs text-muted-foreground mt-0.5">
+                    {session.total_generations} generations • {session.duration_seconds}s
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-muted-foreground">
+                    {new Date(session.created_at * 1000).toLocaleString('en-IN', { 
+                      dateStyle: 'short', 
+                      timeStyle: 'short',
+                      timeZone: 'Asia/Kolkata'
+                    })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="p-8 text-center">
+            <svg class="w-12 h-12 text-muted-foreground mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+            </svg>
+            <p class="text-sm text-muted-foreground">No sessions found for this device</p>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+

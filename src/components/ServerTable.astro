@@ -1,0 +1,259 @@
+---
+export interface Column {
+  key: string;
+  label: string;
+  sortable?: boolean;
+  render?: (value: any, row: any) => string;
+}
+
+export interface Props {
+  data: any[];
+  columns: Column[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  search?: string;
+  baseUrl: string;
+  searchPlaceholder?: string;
+}
+
+const { 
+  data, 
+  columns, 
+  total, 
+  page, 
+  pageSize, 
+  totalPages, 
+  sort = 'created_at', 
+  order = 'desc',
+  search = '',
+  baseUrl,
+  searchPlaceholder = 'Search...'
+} = Astro.props;
+
+// Page size options
+const pageSizeOptions = [10, 20, 50, 100];
+
+// Build URL helper
+function buildUrl(params: Record<string, string | number>) {
+  const url = new URL(baseUrl, Astro.url.origin);
+  // Preserve existing params
+  url.searchParams.set('page', String(params.page ?? page));
+  if (params.pageSize !== undefined) url.searchParams.set('pageSize', String(params.pageSize));
+  else if (pageSize) url.searchParams.set('pageSize', String(pageSize));
+  if (params.sort !== undefined) url.searchParams.set('sort', String(params.sort));
+  else if (sort) url.searchParams.set('sort', sort);
+  if (params.order !== undefined) url.searchParams.set('order', String(params.order));
+  else if (order) url.searchParams.set('order', order);
+  if (params.search !== undefined && params.search !== '') url.searchParams.set('search', String(params.search));
+  else if (search) url.searchParams.set('search', search);
+  return url.pathname + url.search;
+}
+
+// Toggle sort order
+function getSortUrl(column: string) {
+  if (sort === column) {
+    return buildUrl({ sort: column, order: order === 'asc' ? 'desc' : 'asc', page: 1 });
+  }
+  return buildUrl({ sort: column, order: 'desc', page: 1 });
+}
+
+// Page numbers to show (sliding window)
+const maxPagesToShow = 5;
+let startPage = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+if (endPage - startPage + 1 < maxPagesToShow) {
+  startPage = Math.max(1, endPage - maxPagesToShow + 1);
+}
+const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+---
+
+<div class="space-y-4">
+  <!-- Search & Info Bar -->
+  <div class="flex items-center justify-between gap-4">
+    <form method="get" action={baseUrl} class="relative flex-1 max-w-sm">
+      <input type="hidden" name="sort" value={sort} />
+      <input type="hidden" name="order" value={order} />
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+      </svg>
+      <input 
+        type="text" 
+        name="search" 
+        value={search}
+        placeholder={searchPlaceholder}
+        class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+      />
+    </form>
+  </div>
+
+  <!-- Table -->
+  <div class="rounded-xl border border-border bg-card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-muted/50 border-b border-border">
+            {columns.map((col) => (
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
+                {col.sortable ? (
+                  <a 
+                    href={getSortUrl(col.key)} 
+                    class="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    {col.label}
+                    <span class="inline-flex flex-col">
+                      <svg class:list={["w-3 h-3 -mb-1", sort === col.key && order === 'asc' ? "text-foreground" : "text-muted-foreground/40"]} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 8l-6 6h12z"/>
+                      </svg>
+                      <svg class:list={["w-3 h-3 -mt-1", sort === col.key && order === 'desc' ? "text-foreground" : "text-muted-foreground/40"]} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 16l-6-6h12z"/>
+                      </svg>
+                    </span>
+                  </a>
+                ) : (
+                  col.label
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          {data.length > 0 ? (
+            data.map((row) => (
+              <tr class="hover:bg-muted/30 transition-colors">
+                {columns.map((col) => (
+                  <td class="px-4 py-3" set:html={col.render ? col.render(row[col.key], row) : row[col.key]} />
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colspan={columns.length} class="px-4 py-12 text-center text-muted-foreground">
+                No results found
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-4">
+      <div class="text-sm text-muted-foreground">
+        Showing <span class="font-medium text-foreground">{((page - 1) * pageSize) + 1}</span> to <span class="font-medium text-foreground">{Math.min(page * pageSize, total)}</span> of <span class="font-medium text-foreground">{total.toLocaleString()}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-muted-foreground">Show:</span>
+        <select 
+          id="pageSizeSelect"
+          class="px-2 py-1 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+        >
+          {pageSizeOptions.map((size) => (
+            <option value={size} selected={size === pageSize}>{size}</option>
+          ))}
+        </select>
+        <span class="text-sm text-muted-foreground">per page</span>
+      </div>
+    </div>
+    {totalPages > 1 && (
+    <nav class="flex items-center gap-1">
+        <!-- First -->
+        <a 
+          href={page > 1 ? buildUrl({ page: 1 }) : undefined}
+          class:list={[
+            "p-2 rounded-lg border text-sm transition-colors",
+            page > 1 ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+          ]}
+          aria-disabled={page <= 1}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+          </svg>
+        </a>
+        <!-- Previous -->
+        <a 
+          href={page > 1 ? buildUrl({ page: page - 1 }) : undefined}
+          class:list={[
+            "p-2 rounded-lg border text-sm transition-colors",
+            page > 1 ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+          ]}
+          aria-disabled={page <= 1}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </a>
+        
+        <!-- Page Numbers -->
+        {startPage > 1 && (
+          <>
+            <a href={buildUrl({ page: 1 })} class="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors">1</a>
+            {startPage > 2 && <span class="px-2 text-muted-foreground">...</span>}
+          </>
+        )}
+        {pageNumbers.map((p) => (
+          <a 
+            href={buildUrl({ page: p })}
+            class:list={[
+              "px-3 py-1.5 rounded-lg text-sm transition-colors",
+              p === page 
+                ? "bg-foreground text-background font-medium" 
+                : "border border-border hover:bg-muted"
+            ]}
+          >
+            {p}
+          </a>
+        ))}
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span class="px-2 text-muted-foreground">...</span>}
+            <a href={buildUrl({ page: totalPages })} class="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors">{totalPages}</a>
+          </>
+        )}
+
+        <!-- Next -->
+        <a 
+          href={page < totalPages ? buildUrl({ page: page + 1 }) : undefined}
+          class:list={[
+            "p-2 rounded-lg border text-sm transition-colors",
+            page < totalPages ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+          ]}
+          aria-disabled={page >= totalPages}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </a>
+        <!-- Last -->
+        <a 
+          href={page < totalPages ? buildUrl({ page: totalPages }) : undefined}
+          class:list={[
+            "p-2 rounded-lg border text-sm transition-colors",
+            page < totalPages ? "border-border hover:bg-muted cursor-pointer" : "border-transparent text-muted-foreground/40 cursor-not-allowed"
+          ]}
+          aria-disabled={page >= totalPages}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5" />
+          </svg>
+        </a>
+      </nav>
+    )}
+  </div>
+</div>
+
+<script define:vars={{ baseUrl, sort, order, search }}>
+  document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
+    const newPageSize = e.target.value;
+    const url = new URL(window.location.href);
+    url.searchParams.set('pageSize', newPageSize);
+    url.searchParams.set('page', '1'); // Reset to page 1 when changing page size
+    window.location.href = url.toString();
+  });
+</script>
+

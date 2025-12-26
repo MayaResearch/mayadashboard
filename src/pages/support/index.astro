@@ -1,0 +1,154 @@
+---
+export const prerender = false;
+
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import ServerTable from "../../components/ServerTable.astro";
+import DateFilter from "../../components/DateFilter.astro";
+import { getSupportRequestsPaginated, getDeviceMap, type QueryParams, type DateRange } from "../../lib/db";
+
+// Parse URL params
+const url = new URL(Astro.request.url);
+const dateRange = (url.searchParams.get('range') as DateRange) || 'all';
+const params: QueryParams = {
+  page: parseInt(url.searchParams.get('page') || '1'),
+  pageSize: Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageSize') || '100'))),
+  sort: url.searchParams.get('sort') || 'created_at',
+  order: (url.searchParams.get('order') as 'asc' | 'desc') || 'desc',
+  search: url.searchParams.get('search') || '',
+  dateRange
+};
+
+// Fetch data with server-side pagination
+const [result, deviceMap] = await Promise.all([
+  getSupportRequestsPaginated(params),
+  getDeviceMap()
+]);
+
+// Create device name lookup
+const deviceNames = new Map(deviceMap.map(d => [d.device_id, d.device_name]));
+
+// Enrich requests with device names
+const enrichedRequests = result.data.map(r => ({
+  ...r,
+  device_name: deviceNames.get(r.device_id) || null,
+}));
+
+// Helper functions for column rendering
+function getCategoryColor(category: string): string {
+  switch (category) {
+    case 'bug': return 'bg-red-500/10 text-red-600 border-red-500/20';
+    case 'feature': return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+    case 'feedback': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+    default: return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+  }
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'pending': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+    case 'resolved': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+    case 'closed': return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+    default: return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+  }
+}
+
+// Column definitions
+const columns = [
+  {
+    key: 'id',
+    label: 'ID',
+    sortable: true,
+    render: (value: number) => `<span class="font-mono text-sm text-muted-foreground">#${value}</span>`
+  },
+  {
+    key: 'device_id',
+    label: 'Device ID',
+    sortable: true,
+    render: (value: string) => `
+      <a href="/devices/${value}" class="font-mono text-xs hover:underline whitespace-nowrap">${value}</a>
+    `
+  },
+  {
+    key: 'category',
+    label: 'Category',
+    sortable: true,
+    render: (value: string) => `<span class="inline-flex items-center text-xs px-2 py-1 rounded-full border font-medium ${getCategoryColor(value)}">${value}</span>`
+  },
+  {
+    key: 'message',
+    label: 'Message',
+    sortable: false,
+    render: (value: string) => `<p class="text-sm max-w-xs truncate">${value || '-'}</p>`
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    sortable: true,
+    render: (value: string) => `<span class="inline-flex items-center text-xs px-2 py-1 rounded-full border font-medium ${getStatusColor(value)}">${value}</span>`
+  },
+  {
+    key: 'created_at',
+    label: 'Created',
+    sortable: true,
+    render: (value: number) => {
+      const date = new Date(value * 1000);
+      return `
+        <p class="text-sm">${date.toLocaleDateString('en-IN', { dateStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+        <p class="text-xs text-muted-foreground">${date.toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
+      `;
+    }
+  }
+];
+---
+
+<DashboardLayout title="Support Requests" activePage="support">
+  <div class="space-y-6">
+    <!-- Date Filter -->
+    <div class="flex items-center justify-between">
+      <DateFilter 
+        baseUrl="/support" 
+        currentRange={dateRange}
+        preserveParams={{ sort: params.sort || '', order: params.order || '', search: params.search || '' }}
+      />
+      <div class="text-sm text-muted-foreground">
+        <span class="font-semibold text-foreground">{result.total.toLocaleString()}</span> requests
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Total Requests</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{result.total.toLocaleString()}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Showing</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{result.data.length}</p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Current Page</p>
+        <p class="text-3xl font-bold mt-1 tracking-tight">{result.page} <span class="text-lg text-muted-foreground">/ {result.totalPages}</span></p>
+      </div>
+      <div class="bg-card border border-border rounded-xl p-5">
+        <p class="text-sm text-muted-foreground font-medium">Sort</p>
+        <p class="text-xl font-bold mt-1 tracking-tight capitalize">{params.sort?.replace('_', ' ')} <span class="text-sm text-muted-foreground">({params.order})</span></p>
+      </div>
+    </div>
+
+    <!-- Server-Side Table -->
+    <ServerTable 
+      data={enrichedRequests}
+      columns={columns}
+      total={result.total}
+      page={result.page}
+      pageSize={result.pageSize}
+      totalPages={result.totalPages}
+      sort={params.sort}
+      order={params.order}
+      search={params.search}
+      baseUrl="/support"
+      searchPlaceholder="Search by device ID, category, or message..."
+    />
+  </div>
+</DashboardLayout>
+

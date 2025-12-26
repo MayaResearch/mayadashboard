@@ -1,11 +1,28 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+export const prerender = false;
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import DashboardLayout from "../layouts/DashboardLayout.astro";
+import { StatsCards } from "../components/overview/StatsCards";
+import { PaidFreeUsers } from "../components/overview/PaidFreeUsers";
+import { ChartsSection } from "../components/overview/ChartsSection";
+import { NamedDevices } from "../components/overview/NamedDevices";
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<DashboardLayout title="Overview" activePage="overview">
+  <div class="space-y-6">
+    <!-- Stats Grid -->
+    <StatsCards client:load />
+
+    <!-- Paid Users Need to Move to Premium -->
+    <PaidFreeUsers client:load />
+
+    <!-- Charts Grid -->
+    <ChartsSection client:load />
+
+    <!-- Named Devices -->
+    <NamedDevices client:load />
+  </div>
+</DashboardLayout>
+
+<!-- Chart.js CDN - needed for ChartsSection -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

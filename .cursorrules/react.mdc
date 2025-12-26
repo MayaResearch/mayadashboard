@@ -1,0 +1,2094 @@
+---
+alwaysApply: true
+---
+# React Rules & Best Practices for Astro + React Project
+
+## 📁 PROJECT FOLDER STRUCTURE (MANDATORY)
+
+This is the EXACT folder structure that MUST be followed for our Astro + React project:
+
+```
+src/
+├── components/                         # GLOBAL React components
+│   ├── ui/                            # Shadcn UI component library
+│   │   ├── button.tsx                 # Individual UI components
+│   │   ├── table.tsx
+│   │   ├── modal.tsx
+│   │   ├── form.tsx
+│   │   └── ...
+│   │
+│   ├── GlobalForm/                    # Global form components
+│   │   ├── DynamicForm.tsx
+│   │   ├── FileUploader.tsx
+│   │   ├── SearchableMultiSelect.tsx
+│   │   ├── SearchableSelect.tsx
+│   │   └── utils.ts
+│   │
+│   ├── GlobalTable/                   # Global table components
+│   │   ├── data-table.tsx
+│   │   ├── DataTablePagination.tsx
+│   │   ├── DataTableViewOptions.tsx
+│   │   ├── DateRangePicker.tsx
+│   │   ├── FilterDropDown.tsx
+│   │   └── TableToolbar.tsx
+│   │
+│   ├── Graphs/                        # Chart components
+│   │   ├── AreaGraph.tsx
+│   │   ├── BarGraph.tsx
+│   │   └── PieGraph.tsx
+│   │
+│   ├── notifications/                 # Notification system
+│   │   ├── NotificationProvider.tsx
+│   │   ├── NotificationBell.tsx
+│   │   ├── GlobalNotificationBanner.tsx
+│   │   └── ...
+│   │
+│   ├── sidebar/                       # Sidebar components
+│   │   ├── index.tsx
+│   │   ├── Breadcrumbs.tsx
+│   │   └── Icons.tsx
+│   │
+│   └── [ComponentName].tsx            # Other global components
+│       ├── BookingCalendar.tsx
+│       ├── DataTable.tsx
+│       ├── PageContainer.tsx
+│       └── StatsCard.tsx
+│
+├── pages/                              # Astro pages
+│   ├── admin/                         # Admin section
+│   │   ├── bookings/                  # Feature folder
+│   │   │   ├── _components/           # Page-specific React 
+│   │   │   │   ├── BookingDetailsScreen.tsx
+│   │   │   │   ├── columns.tsx
+│   │   │   │   └── screen.tsx
+│   │   │   ├── index.astro           # Main page
+│   │   │   ├── [id].astro            # Dynamic page
+│   │   │   ├── cancelled.astro       # Sub-pages
+│   │   │   └── confirmed.astro
+│   │   │
+│   │   ├── hotels/                    # Another feature
+│   │   │   ├── _components/
+│   │   │   │   ├── HotelDetailsScreen.tsx
+│   │   │   │   ├── HotelForm.tsx
+│   │   │   │   └── screen.tsx
+│   │   │   ├── index.astro
+│   │   │   └── [id].astro
+│   │   │
+│   │   └── [other-features]/
+│   │
+│   ├── auth/
+│   │   ├── login.astro
+│   │   └── register.astro
+│   │
+│   └── index.astro
+│
+├── layouts/                           # Astro layouts
+│   ├── Layout.astro                   # Base layout
+│   ├── DashboardLayout.astro          # Dashboard layout
+│   └── LayoutWithNotificationBanner.astro
+│
+├── lib/                               # Utilities and configurations
+│   ├── hooks/                         # Custom React hooks
+│   │   ├── use-breadcrumbs.tsx
+│   │   └── useNotificationPermission.ts
+│   │
+│   ├── types/                         # TypeScript type definitions
+│   │   ├── index.ts                   # Main type exports
+│   │   ├── dynamicForm.ts
+│   │   └── RoutesResponse.ts
+│   │
+│   ├── utils/                         # Utility functions
+│   │   ├── api.ts                     # API configuration
+│   │   ├── auth.ts                    # Authentication utilities
+│   │   ├── constants.ts               # App constants
+│   │   ├── date-utils.ts              # Date utilities
+│   │   ├── firebase.ts                # Firebase config
+│   │   ├── NavItems.ts                # Navigation items
+│   │   ├── notificationPermissionManager.ts
+│   │   ├── utils.ts                   # General utilities
+│   │   └── webPushClient.ts
+│
+├── hooks/                             # Additional React hooks (if needed)
+│   ├── use-mobile.ts
+│   └── useNotificationPermission.ts
+│
+└── styles/                            # Global styles
+    ├── global.css
+    └── notification-banner.css
+```
+
+### File Naming Conventions
+
+1. **Astro Pages**: Always `.astro` extension
+2. **React Components**: PascalCase with `.tsx` extension
+3. **Page Components**: PascalCase in `_components/` folder
+4. **Global Components**: PascalCase in appropriate category folder
+5. **Hooks**: Start with `use` (camelCase)
+6. **Utils**: Descriptive name with `.ts`
+7. **Types**: End with `.ts`
+8. **Tests**: Same name with `.test.ts(x)`
+
+### Import Path Aliases (tsconfig.json)
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/hooks/*": ["./src/lib/hooks/*"],
+      "@/utils/*": ["./src/lib/utils/*"],
+      "@/types/*": ["./src/lib/types/*"]
+    }
+  }
+}
+```
+
+## React Component Structure (STRICT ORDER)
+
+Every React component MUST follow this exact structure:
+
+```tsx
+// 1. Imports (grouped and ordered)
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { type ComponentProps } from '@astrojs/react';
+import { ExternalLibrary } from 'external-lib';
+import { LocalComponent } from '@/components/ui';
+import { useCustomHook } from '@/lib/hooks';
+import { utilFunction } from '@/lib/utils';
+import type { ComponentProps as Props } from '@/lib/types';
+
+// 2. Interface/Type definitions
+interface ComponentProps {
+  title: string;
+  data: DataType[];
+  onSubmit: (values: FormValues) => Promise<void>;
+  className?: string;
+}
+
+// 3. Component definition with proper typing
+export const Component: React.FC<ComponentProps> = ({ 
+  title, 
+  data, 
+  onSubmit, 
+  className 
+}) => {
+  // 4. State declarations
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
+  
+  // 5. Custom hooks
+  const { user, isAuthenticated } = useAuth();
+  const { apiData, refetch } = useApiData();
+  
+  // 6. Memoized values
+  const processedData = useMemo(() => {
+    return data.filter(item => item.active)
+               .sort((a, b) => b.priority - a.priority);
+  }, [data]);
+  
+  const expensiveCalculation = useMemo(() => {
+    return calculateComplexValue(processedData);
+  }, [processedData]);
+  
+  // 7. Callbacks
+  const handleClick = useCallback((id: string) => {
+    // Handle click logic
+    setLoading(true);
+  }, []);
+  
+  const handleSubmit = useCallback(async (values: FormValues) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await onSubmit(values);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [onSubmit]);
+  
+  // 8. Effects
+  useEffect(() => {
+    // Initial data fetch
+    fetchInitialData();
+    
+    // Cleanup function
+    return () => {
+      cleanupResources();
+    };
+  }, []);
+  
+  useEffect(() => {
+    // Dependent effect
+  }, [dependency]);
+  
+  // 9. Early returns/Guards
+  if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!data.length) return <EmptyState />;
+  
+  // 10. Render helpers (if needed)
+  const renderItem = (item: DataType) => (
+    <ItemComponent key={item.id} {...item} />
+  );
+  
+  // 11. Main render
+  return (
+    <div className={className}>
+      {/* Component JSX */}
+    </div>
+  );
+};
+
+// 12. Display name (for debugging)
+Component.displayName = 'Component';
+
+// 13. Default export (for Astro compatibility)
+export default Component;
+```
+
+## Astro + React Integration Rules
+
+### 1. Client Directives Usage
+
+```astro
+---
+// page.astro
+import Component from '../_components/Component.tsx';
+---
+
+<!-- Static rendering (default) -->
+<Component data={staticData} />
+
+<!-- Hydrate on load -->
+<Component client:load data={data} />
+
+<!-- Hydrate when visible -->
+<Component client:visible data={data} />
+
+<!-- Hydrate on media query -->
+<Component client:media="(max-width: 768px)" data={data} />
+
+<!-- Hydrate when idle -->
+<Component client:idle data={data} />
+```
+
+### 2. Props Passing from Astro to React
+
+```astro
+---
+// BookingDetails.astro
+import BookingDetailsScreen from './_components/BookingDetailsScreen.tsx';
+
+const { id } = Astro.params;
+const booking = await fetchBooking(id);
+---
+
+<BookingDetailsScreen 
+  client:load 
+  booking={booking}
+  onUpdate={(data) => console.log(data)}
+/>
+```
+
+### 3. React Component for Astro Pages
+
+```tsx
+// _components/BookingDetailsScreen.tsx
+import React, { useState, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import type { Booking } from '@/lib/types';
+
+interface BookingDetailsScreenProps {
+  booking: Booking;
+  onUpdate?: (booking: Booking) => void;
+}
+
+export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({ 
+  booking, 
+  onUpdate 
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState(booking);
+
+  const handleSave = useCallback(async () => {
+    try {
+      // API call to update booking
+      const updatedBooking = await updateBooking(formData);
+      onUpdate?.(updatedBooking);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update booking:', error);
+    }
+  }, [formData, onUpdate]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Booking Details</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isEditing ? (
+          <BookingForm 
+            data={formData}
+            onChange={setFormData}
+            onSave={handleSave}
+            onCancel={() => setIsEditing(false)}
+          />
+        ) : (
+          <BookingDisplay 
+            booking={booking}
+            onEdit={() => setIsEditing(true)}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default BookingDetailsScreen;
+```
+
+## Performance Optimization Rules
+
+### 1. Memoization Strategy
+
+```tsx
+// ✅ GOOD: Memoize expensive operations
+const ExpensiveDataTable = React.memo<DataTableProps>(({ data, filters }) => {
+  const filteredData = useMemo(() => {
+    return data.filter(item => matchesFilters(item, filters));
+  }, [data, filters]);
+  
+  const sortedData = useMemo(() => {
+    return filteredData.sort((a, b) => b.createdAt - a.createdAt);
+  }, [filteredData]);
+  
+  return (
+    <DataTable data={sortedData} />
+  );
+});
+
+// Memoize with custom comparison for complex props
+const OptimizedBookingCard = React.memo(BookingCard, (prevProps, nextProps) => {
+  return (
+    prevProps.booking.id === nextProps.booking.id && 
+    prevProps.booking.status === nextProps.booking.status &&
+    prevProps.booking.updatedAt === nextProps.booking.updatedAt
+  );
+});
+```
+
+### 2. useCallback for Event Handlers
+
+```tsx
+// ✅ GOOD: Prevent function recreation
+const BookingManagement = () => {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // This function won't be recreated on every render
+  const handleBookingSelect = useCallback((id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(selectedId => selectedId !== id)
+        : [...prev, id]
+    );
+  }, []);
+  
+  const handleBulkAction = useCallback(async (action: string) => {
+    try {
+      await performBulkAction(selectedIds, action);
+      // Refetch data
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+    }
+  }, [selectedIds]);
+  
+  return (
+    <div>
+      {bookings.map(booking => (
+        <BookingCard 
+          key={booking.id}
+          booking={booking}
+          onSelect={handleBookingSelect}
+        />
+      ))}
+    </div>
+  );
+};
+```
+
+## Custom Hooks Best Practices
+
+### 1. API Data Hook
+
+```tsx
+// lib/hooks/useApiData.ts
+export function useApiData<T>(endpoint: string, options?: RequestOptions) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.get<T>(endpoint, options);
+      setData(response.data);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [endpoint, options]);
+  
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  
+  return { 
+    data, 
+    loading, 
+    error, 
+    refetch: fetchData,
+    mutate: setData 
+  };
+}
+
+// Usage in component
+const BookingList = () => {
+  const { data: bookings, loading, error, refetch } = useApiData<Booking[]>('/api/bookings');
+  
+  if (loading) return <BookingsSkeleton />;
+  if (error) return <ErrorMessage error={error} onRetry={refetch} />;
+  
+  return <BookingsTable data={bookings || []} />;
+};
+```
+
+### 2. Form Hook
+
+```tsx
+// lib/hooks/useForm.ts
+export function useForm<T extends Record<string, any>>(
+  initialValues: T,
+  validationSchema?: ValidationSchema<T>
+) {
+  const [values, setValues] = useState<T>(initialValues);
+  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
+  const [touched, setTouched] = useState<Set<keyof T>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validateField = useCallback((name: keyof T, value: any) => {
+    if (!validationSchema) return '';
+    return validationSchema[name]?.(value) || '';
+  }, [validationSchema]);
+
+  const handleChange = useCallback((name: keyof T, value: any) => {
+    setValues(prev => ({ ...prev, [name]: value }));
+    
+    if (touched.has(name)) {
+      const error = validateField(name, value);
+      setErrors(prev => ({ ...prev, [name]: error }));
+    }
+  }, [touched, validateField]);
+
+  const handleBlur = useCallback((name: keyof T) => {
+    setTouched(prev => new Set(prev).add(name));
+    const error = validateField(name, values[name]);
+    setErrors(prev => ({ ...prev, [name]: error }));
+  }, [values, validateField]);
+
+  const handleSubmit = useCallback(async (
+    onSubmit: (values: T) => Promise<void>
+  ) => {
+    setIsSubmitting(true);
+    
+    // Validate all fields
+    const validationErrors: Partial<Record<keyof T, string>> = {};
+    let hasErrors = false;
+    
+    for (const key in values) {
+      const error = validateField(key, values[key]);
+      if (error) {
+        validationErrors[key] = error;
+        hasErrors = true;
+      }
+    }
+    
+    if (hasErrors) {
+      setErrors(validationErrors);
+      setTouched(new Set(Object.keys(values) as (keyof T)[]));
+      setIsSubmitting(false);
+      return;
+    }
+    
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      console.error('Form submission error:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [values, validateField]);
+
+  const reset = useCallback(() => {
+    setValues(initialValues);
+    setErrors({});
+    setTouched(new Set());
+    setIsSubmitting(false);
+  }, [initialValues]);
+
+  return {
+    values,
+    errors,
+    touched,
+    isSubmitting,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+    reset,
+    setValues,
+    setErrors
+  };
+}
+```
+
+## Error Handling Patterns
+
+### 1. Error Boundary for React Components
+
+```tsx
+// components/ErrorBoundary.tsx
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: React.ComponentType<{ error: Error; resetError: () => void }>;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log to error reporting service
+    console.error('Error caught by boundary:', error, errorInfo);
+    // You can also send to external service here
+  }
+
+  resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      const FallbackComponent = this.props.fallback || DefaultErrorFallback;
+      return (
+        <FallbackComponent 
+          error={this.state.error!} 
+          resetError={this.resetError} 
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Usage in Astro page
+<ErrorBoundary client:load>
+  <BookingDetailsScreen booking={booking} />
+</ErrorBoundary>
+```
+
+### 2. API Error Handling
+
+```tsx
+// lib/utils/api.ts
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export const apiClient = {
+  async get<T>(url: string, options?: RequestInit): Promise<{ data: T }> {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        ...options,
+      });
+
+      if (!response.ok) {
+        throw new ApiError(
+          `Request failed: ${response.statusText}`,
+          response.status
+        );
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('Network error occurred', 0);
+    }
+  },
+
+  async post<T>(url: string, body: any, options?: RequestInit): Promise<{ data: T }> {
+    // Similar implementation
+  },
+
+  async put<T>(url: string, body: any, options?: RequestInit): Promise<{ data: T }> {
+    // Similar implementation
+  },
+
+  async delete<T>(url: string, options?: RequestInit): Promise<{ data: T }> {
+    // Similar implementation
+  }
+};
+```
+
+## Form Handling with Dynamic Forms
+
+```tsx
+// components/GlobalForm/DynamicForm.tsx
+import React, { useMemo } from 'react';
+import { useForm } from '@/lib/hooks/useForm';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import type { DynamicFormConfig, FormField } from '@/lib/types/dynamicForm';
+
+interface DynamicFormProps {
+  config: DynamicFormConfig;
+  initialValues?: Record<string, any>;
+  onSubmit: (values: Record<string, any>) => Promise<void>;
+  className?: string;
+}
+
+export const DynamicForm: React.FC<DynamicFormProps> = ({
+  config,
+  initialValues = {},
+  onSubmit,
+  className
+}) => {
+  const validationSchema = useMemo(() => {
+    return config.fields.reduce((schema, field) => {
+      if (field.validation) {
+        schema[field.name] = field.validation;
+      }
+      return schema;
+    }, {} as Record<string, (value: any) => string>);
+  }, [config.fields]);
+
+  const {
+    values,
+    errors,
+    touched,
+    isSubmitting,
+    handleChange,
+    handleBlur,
+    handleSubmit
+  } = useForm(initialValues, validationSchema);
+
+  const renderField = useCallback((field: FormField) => {
+    const commonProps = {
+      id: field.name,
+      name: field.name,
+      value: values[field.name] || '',
+      onChange: (value: any) => handleChange(field.name, value),
+      onBlur: () => handleBlur(field.name),
+      disabled: isSubmitting,
+      error: touched.has(field.name) ? errors[field.name] : undefined
+    };
+
+    switch (field.type) {
+      case 'text':
+      case 'email':
+      case 'password':
+        return (
+          <Input
+            {...commonProps}
+            type={field.type}
+            placeholder={field.placeholder}
+          />
+        );
+
+      case 'select':
+        return (
+          <Select
+            {...commonProps}
+            options={field.options || []}
+            placeholder={field.placeholder}
+          />
+        );
+
+      case 'textarea':
+        return (
+          <textarea
+            {...commonProps}
+            placeholder={field.placeholder}
+            rows={field.rows || 3}
+          />
+        );
+
+      default:
+        return null;
+    }
+  }, [values, errors, touched, isSubmitting, handleChange, handleBlur]);
+
+  return (
+    <form 
+      className={className}
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSubmit(onSubmit);
+      }}
+    >
+      {config.fields.map(field => (
+        <div key={field.name} className="form-field">
+          <label htmlFor={field.name}>
+            {field.label}
+            {field.required && <span className="required">*</span>}
+          </label>
+          {renderField(field)}
+          {touched.has(field.name) && errors[field.name] && (
+            <span className="error-message">{errors[field.name]}</span>
+          )}
+        </div>
+      ))}
+      
+      <Button 
+        type="submit" 
+        disabled={isSubmitting}
+        className="submit-button"
+      >
+        {isSubmitting ? 'Submitting...' : config.submitText || 'Submit'}
+      </Button>
+    </form>
+  );
+};
+
+export default DynamicForm;
+```
+
+## Data Table Implementation
+
+```tsx
+// components/GlobalTable/data-table.tsx
+import React, { useState, useMemo } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+  type VisibilityState,
+} from '@tanstack/react-table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTablePagination } from './DataTablePagination';
+import { DataTableViewOptions } from './DataTableViewOptions';
+import { TableToolbar } from './TableToolbar';
+
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  searchKey?: string;
+  pageSize?: number;
+  className?: string;
+}
+
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  searchKey = 'name',
+  pageSize = 10,
+  className
+}: DataTableProps<TData, TValue>) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = useState({});
+
+  const table = useReactTable({
+    data,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+    initialState: {
+      pagination: {
+        pageSize,
+      },
+    },
+  });
+
+  return (
+    <div className={className}>
+      <TableToolbar table={table} searchKey={searchKey} />
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex items-center justify-between space-x-2 py-4">
+        <DataTableViewOptions table={table} />
+        <DataTablePagination table={table} />
+      </div>
+    </div>
+  );
+}
+
+export default DataTable;
+```
+
+## Common Anti-Patterns to Avoid
+
+### ❌ DON'T DO THIS:
+
+```tsx
+// 1. Direct state mutation
+const [items, setItems] = useState([]);
+items.push(newItem); // WRONG!
+setItems(items); // Won't trigger re-render
+
+// 2. useEffect without cleanup
+useEffect(() => {
+  const timer = setInterval(() => {}, 1000);
+  // Missing: return () => clearInterval(timer);
+}, []);
+
+// 3. Inline function creation in render
+<Button onClick={() => handleClick(item.id)}> // Creates new function each render
+
+// 4. Missing dependency array
+useEffect(() => {
+  fetchData(userId);
+}); // Runs on every render!
+
+// 5. Conditional hooks
+if (condition) {
+  useState(0); // WRONG! Hooks must be called unconditionally
+}
+
+// 6. Not handling loading states in Astro components
+<Component client:load data={data} /> // What if data is still loading?
+
+// 7. Forgetting client directive for interactive components
+<InteractiveForm data={data} /> // Won't be interactive without client:*
+```
+
+### ✅ DO THIS INSTEAD:
+
+```tsx
+// 1. Proper state updates
+setItems(prev => [...prev, newItem]);
+
+// 2. Cleanup effects
+useEffect(() => {
+  const timer = setInterval(() => {}, 1000);
+  return () => clearInterval(timer);
+}, []);
+
+// 3. Use useCallback for event handlers
+const handleClick = useCallback((id: string) => {
+  // Handle click
+}, []);
+
+// 4. Proper dependency arrays
+useEffect(() => {
+  fetchData(userId);
+}, [userId]);
+
+// 5. Always call hooks at top level
+const [count, setCount] = useState(0);
+if (condition) {
+  // Use the state conditionally, not the hook
+}
+
+// 6. Handle loading states properly
+{data ? (
+  <Component client:load data={data} />
+) : (
+  <LoadingSpinner />
+)}
+
+// 7. Use appropriate client directives
+<InteractiveForm client:load data={data} />
+```
+
+## Performance Checklist for Astro + React
+
+- [ ] Use appropriate client directives (`client:load`, `client:visible`, etc.)
+- [ ] Minimize client-side JavaScript by using static rendering when possible
+- [ ] Use React.memo for expensive pure components
+- [ ] Implement useMemo for expensive calculations
+- [ ] Use useCallback for functions passed as props
+- [ ] Lazy load heavy components with `client:visible`
+- [ ] Implement error boundaries for React components
+- [ ] Add loading and error states
+- [ ] Clean up effects properly
+- [ ] Avoid inline function creation
+- [ ] Use proper key props in lists
+- [ ] Batch state updates when possible
+- [ ] Use TypeScript strict mode
+- [ ] Handle API errors gracefully
+- [ ] Implement proper form validation
+- [ ] Use proper import paths with aliases
+
+## Astro-Specific Best Practices
+
+### 1. Component Islands Strategy
+
+```astro
+---
+// Use static rendering for non-interactive content
+import StaticCard from '../components/StaticCard.astro';
+import InteractiveChart from '../components/InteractiveChart.tsx';
+---
+
+<!-- Static content -->
+<StaticCard title="Hotel Stats" />
+
+<!-- Interactive content only where needed -->
+<InteractiveChart client:visible data={chartData} />
+```
+
+### 2. Data Fetching in Astro
+
+```astro
+---
+// Fetch data at build time or request time
+import { getBookings } from '../lib/utils/api';
+
+const bookings = await getBookings();
+const recentBookings = bookings.slice(0, 10);
+---
+
+<BookingsList 
+  client:load 
+  bookings={recentBookings}
+  onLoadMore={() => {/* client-side logic */}}
+/>
+```
+
+### 3. Progressive Enhancement
+
+```astro
+---
+import BookingForm from '../_components/BookingForm.tsx';
+---
+
+<!-- Form works without JavaScript -->
+<form action="/api/bookings" method="post">
+  <input name="hotelId" type="hidden" value={hotel.id} />
+  <input name="checkIn" type="date" required />
+  <input name="checkOut" type="date" required />
+  <button type="submit">Book Now</button>
+</form>
+
+<!-- Enhanced with React for better UX -->
+<BookingForm 
+  client:load 
+  hotel={hotel}
+  onSubmit={handleBooking}
+/>
+```
+
+This structure ensures optimal performance, maintainability, and follows Astro + React best practices while maintaining the existing project structure.
+
+## 🔄 GLOBAL COMPONENTS & REUSABILITY (MANDATORY)
+
+### Component Reusability Strategy
+
+**RULE**: Create reusable global components for any UI pattern that appears in multiple places. Follow the DRY principle and build a consistent component library.
+
+### 📁 Global Components Organization
+
+```
+src/components/
+├── ui/                              # Shadcn UI base components (button, input, etc.)
+├── GlobalTable/                     # Reusable table components
+├── GlobalForm/                      # Reusable form components  
+├── GlobalModal/                     # Reusable modal components
+├── Graphs/                          # Chart and visualization components
+├── layout/                          # Layout-related components
+├── common/                          # Common utility components
+└── [Feature]Components.tsx          # Single-purpose global components
+```
+
+### ✅ CORRECT: Reusable DataTable Component
+
+```tsx
+// components/GlobalTable/DataTable.tsx
+import React, { useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+} from '@tanstack/react-table';
+
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  searchKey?: string;
+  pageSize?: number;
+  onRowClick?: (row: TData) => void;
+  loading?: boolean;
+  emptyMessage?: string;
+  className?: string;
+}
+
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  searchKey = 'name',
+  pageSize = 10,
+  onRowClick,
+  loading = false,
+  emptyMessage = 'No results found.',
+  className
+}: DataTableProps<TData, TValue>) {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = React.useState('');
+
+  const table = useReactTable({
+    data,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter,
+    },
+    initialState: {
+      pagination: { pageSize },
+    },
+  });
+
+  // Memoize expensive calculations
+  const tableData = useMemo(() => table.getRowModel().rows, [table]);
+
+  if (loading) {
+    return <DataTableSkeleton />;
+  }
+
+  return (
+    <div className={`space-y-4 ${className || ''}`}>
+      <DataTableToolbar 
+        table={table}
+        searchKey={searchKey}
+        globalFilter={globalFilter}
+        setGlobalFilter={setGlobalFilter}
+      />
+      
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder ? null : (
+                      <Button
+                        variant="ghost"
+                        onClick={() => header.column.toggleSorting()}
+                        className="h-auto p-0 font-semibold"
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {tableData.length ? (
+              tableData.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  onClick={() => onRowClick?.(row.original)}
+                  className={onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      
+      <DataTablePagination table={table} />
+    </div>
+  );
+}
+
+// Memoize the component for performance
+export default React.memo(DataTable) as typeof DataTable;
+```
+
+### ✅ CORRECT: Reusable DynamicForm Component
+
+```tsx
+// components/GlobalForm/DynamicForm.tsx
+import React, { useCallback, useMemo } from 'react';
+import { useForm, type FieldValues, type UseFormReturn } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+export interface FormFieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'email' | 'password' | 'textarea' | 'select' | 'checkbox' | 'file' | 'date';
+  placeholder?: string;
+  description?: string;
+  required?: boolean;
+  disabled?: boolean;
+  options?: Array<{ value: string; label: string; disabled?: boolean }>;
+  validation?: z.ZodType<any>;
+  dependencies?: string[]; // Fields this depends on
+  conditional?: (values: any) => boolean; // Show field conditionally
+}
+
+interface DynamicFormProps<T extends FieldValues = FieldValues> {
+  fields: FormFieldConfig[];
+  onSubmit: (data: T) => Promise<void>;
+  defaultValues?: Partial<T>;
+  submitText?: string;
+  loading?: boolean;
+  className?: string;
+  onFieldChange?: (name: string, value: any, form: UseFormReturn<T>) => void;
+  resetOnSubmit?: boolean;
+}
+
+export function DynamicForm<T extends FieldValues = FieldValues>({
+  fields,
+  onSubmit,
+  defaultValues = {},
+  submitText = 'Submit',
+  loading = false,
+  className,
+  onFieldChange,
+  resetOnSubmit = true,
+}: DynamicFormProps<T>) {
+  
+  // Memoize schema creation
+  const schema = useMemo(() => {
+    const schemaFields = fields.reduce((acc, field) => {
+      let fieldSchema = field.validation || z.string();
+      
+      if (field.required) {
+        fieldSchema = fieldSchema.min(1, `${field.label} is required`);
+      } else {
+        fieldSchema = fieldSchema.optional();
+      }
+      
+      acc[field.name] = fieldSchema;
+      return acc;
+    }, {} as Record<string, z.ZodType<any>>);
+    
+    return z.object(schemaFields);
+  }, [fields]);
+
+  const form = useForm<T>({
+    resolver: zodResolver(schema),
+    defaultValues: defaultValues as any,
+    mode: 'onChange',
+  });
+
+  const { handleSubmit, watch, reset, formState: { errors, isSubmitting } } = form;
+  
+  // Watch all values for conditional fields
+  const watchedValues = watch();
+
+  // Memoize visible fields based on conditions
+  const visibleFields = useMemo(() => {
+    return fields.filter(field => {
+      if (!field.conditional) return true;
+      return field.conditional(watchedValues);
+    });
+  }, [fields, watchedValues]);
+
+  const onSubmitHandler = useCallback(async (data: T) => {
+    try {
+      await onSubmit(data);
+      if (resetOnSubmit) {
+        reset();
+      }
+    } catch (error) {
+      console.error('Form submission error:', error);
+      // Handle error (could show toast, etc.)
+    }
+  }, [onSubmit, reset, resetOnSubmit]);
+
+  const handleFieldChange = useCallback((name: string, value: any) => {
+    onFieldChange?.(name, value, form);
+  }, [onFieldChange, form]);
+
+  return (
+    <Form {...form}>
+      <form onSubmit={handleSubmit(onSubmitHandler)} className={className}>
+        <div className="space-y-4">
+          {visibleFields.map((fieldConfig) => (
+            <FormField
+              key={fieldConfig.name}
+              control={form.control}
+              name={fieldConfig.name}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={fieldConfig.required ? 'required' : ''}>
+                    {fieldConfig.label}
+                  </FormLabel>
+                  <FormControl>
+                    <DynamicFormField
+                      {...field}
+                      type={fieldConfig.type}
+                      placeholder={fieldConfig.placeholder}
+                      disabled={fieldConfig.disabled || loading}
+                      options={fieldConfig.options}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        handleFieldChange(fieldConfig.name, value);
+                      }}
+                    />
+                  </FormControl>
+                  {fieldConfig.description && (
+                    <FormDescription>{fieldConfig.description}</FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ))}
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => reset()}
+            disabled={loading || isSubmitting}
+          >
+            Reset
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={loading || isSubmitting}
+          >
+            {loading || isSubmitting ? 'Submitting...' : submitText}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+}
+
+export default React.memo(DynamicForm) as typeof DynamicForm;
+```
+
+### ✅ CORRECT: Reusable Modal Components
+
+```tsx
+// components/GlobalModal/ConfirmationModal.tsx
+import React from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+interface ConfirmationModalProps {
+  title: string;
+  description: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
+  variant?: 'default' | 'destructive';
+  loading?: boolean;
+  children: React.ReactNode; // Trigger element
+}
+
+export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  title,
+  description,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  onConfirm,
+  onCancel,
+  variant = 'default',
+  loading = false,
+  children,
+}) => {
+  const handleConfirm = async () => {
+    try {
+      await onConfirm();
+    } catch (error) {
+      console.error('Confirmation action failed:', error);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        {children}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel} disabled={loading}>
+            {cancelText}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirm}
+            disabled={loading}
+            className={variant === 'destructive' ? 'bg-destructive hover:bg-destructive/90' : ''}
+          >
+            {loading ? 'Loading...' : confirmText}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
+export default ConfirmationModal;
+```
+
+### ✅ CORRECT: Common Utility Components
+
+```tsx
+// components/common/LoadingSpinner.tsx
+import React from 'react';
+import { Loader2 } from 'lucide-react';
+
+interface LoadingSpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
+  text?: string;
+  className?: string;
+}
+
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
+  size = 'md',
+  text,
+  className
+}) => {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8'
+  };
+
+  return (
+    <div className={`flex items-center justify-center gap-2 ${className || ''}`}>
+      <Loader2 className={`animate-spin ${sizeClasses[size]}`} />
+      {text && <span className="text-muted-foreground">{text}</span>}
+    </div>
+  );
+};
+
+// components/common/StatusBadge.tsx
+interface StatusBadgeProps {
+  status: 'active' | 'inactive' | 'pending' | 'error';
+  text?: string;
+  className?: string;
+}
+
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ 
+  status, 
+  text, 
+  className 
+}) => {
+  const variants = {
+    active: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+    inactive: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+    error: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+  };
+
+  return (
+    <Badge className={`${variants[status]} ${className || ''}`}>
+      {text || status}
+    </Badge>
+  );
+};
+```
+
+### 🎯 Component Usage Patterns
+
+#### ✅ CORRECT: Using Global Components
+
+```tsx
+// pages/admin/users/_components/UsersScreen.tsx
+import React, { useState, useCallback } from 'react';
+import DataTable from '@/components/GlobalTable/DataTable';
+import DynamicForm from '@/components/GlobalForm/DynamicForm';
+import ConfirmationModal from '@/components/GlobalModal/ConfirmationModal';
+import { LoadingSpinner, StatusBadge } from '@/components/common';
+
+export const UsersScreen: React.FC<UsersScreenProps> = ({ users }) => {
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Memoize column definitions
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+    },
+    {
+      accessorKey: 'email', 
+      header: 'Email',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.status} />
+      ),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }) => (
+        <ConfirmationModal
+          title="Delete User"
+          description="Are you sure you want to delete this user?"
+          confirmText="Delete"
+          variant="destructive"
+          onConfirm={() => handleDeleteUser(row.original.id)}
+        >
+          <Button variant="destructive" size="sm">
+            Delete
+          </Button>
+        </ConfirmationModal>
+      ),
+    },
+  ], []);
+
+  const createUserFields = useMemo(() => [
+    {
+      name: 'name',
+      label: 'Full Name',
+      type: 'text' as const,
+      required: true,
+      placeholder: 'Enter user name'
+    },
+    {
+      name: 'email',
+      label: 'Email Address', 
+      type: 'email' as const,
+      required: true,
+      placeholder: 'user@example.com'
+    },
+    {
+      name: 'role',
+      label: 'User Role',
+      type: 'select' as const,
+      required: true,
+      options: [
+        { value: 'user', label: 'User' },
+        { value: 'admin', label: 'Administrator' }
+      ]
+    }
+  ], []);
+
+  const handleCreateUser = useCallback(async (data: any) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        window.location.reload(); // Refresh server data
+      }
+    } catch (error) {
+      console.error('Failed to create user:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleDeleteUser = useCallback(async (userId: string) => {
+    // Delete logic
+  }, []);
+
+  if (loading) {
+    return <LoadingSpinner size="lg" text="Loading users..." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Users</h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button>Add User</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+            </DialogHeader>
+            <DynamicForm
+              fields={createUserFields}
+              onSubmit={handleCreateUser}
+              submitText="Create User"
+              loading={loading}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={users}
+        searchKey="name"
+        onRowClick={(user) => setSelectedUser(user)}
+        emptyMessage="No users found."
+      />
+    </div>
+  );
+};
+```
+
+### 🎯 Performance Optimization for Global Components
+
+#### Memoization Strategy
+```tsx
+// ✅ GOOD: Memoize expensive global components
+const OptimizedDataTable = React.memo(DataTable, (prevProps, nextProps) => {
+  // Custom comparison for better performance
+  return (
+    prevProps.data.length === nextProps.data.length &&
+    prevProps.data.every((item, index) => item.id === nextProps.data[index]?.id)
+  );
+});
+
+// ✅ GOOD: Memoize form field configurations
+const useFormFields = (userRole: string) => {
+  return useMemo(() => [
+    {
+      name: 'name',
+      label: 'Name',
+      type: 'text' as const,
+      required: true
+    },
+    // Conditional fields based on role
+    ...(userRole === 'admin' ? [{
+      name: 'permissions',
+      label: 'Permissions',
+      type: 'select' as const,
+      options: adminPermissions
+    }] : [])
+  ], [userRole]);
+};
+```
+
+### 🔧 Global Component Testing
+
+```tsx
+// __tests__/components/GlobalTable/DataTable.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import DataTable from '@/components/GlobalTable/DataTable';
+
+const mockData = [
+  { id: '1', name: 'John Doe', email: 'john@example.com' },
+  { id: '2', name: 'Jane Smith', email: 'jane@example.com' },
+];
+
+const mockColumns = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+];
+
+describe('DataTable', () => {
+  it('renders table with data', () => {
+    render(<DataTable columns={mockColumns} data={mockData} />);
+    
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+  });
+
+  it('handles row clicks', () => {
+    const onRowClick = jest.fn();
+    render(
+      <DataTable 
+        columns={mockColumns} 
+        data={mockData} 
+        onRowClick={onRowClick}
+      />
+    );
+    
+    fireEvent.click(screen.getByText('John Doe'));
+    expect(onRowClick).toHaveBeenCalledWith(mockData[0]);
+  });
+
+  it('shows empty state when no data', () => {
+    render(
+      <DataTable 
+        columns={mockColumns} 
+        data={[]} 
+        emptyMessage="No users found"
+      />
+    );
+    
+    expect(screen.getByText('No users found')).toBeInTheDocument();
+  });
+});
+```
+
+### 📋 Global Components Checklist
+
+- [ ] **Reusability**: Component can be used in multiple contexts
+- [ ] **Flexibility**: Configurable via props without breaking changes
+- [ ] **Performance**: Properly memoized and optimized
+- [ ] **Accessibility**: ARIA labels, keyboard navigation, screen reader support
+- [ ] **TypeScript**: Fully typed with generic support where needed
+- [ ] **Testing**: Unit tests covering main functionality
+- [ ] **Documentation**: Clear prop interfaces and usage examples
+- [ ] **Consistent Styling**: Uses design system tokens and classes
+
+This pattern ensures you build a robust, reusable component library that scales with your application.
+
+## 🧩 COMPONENT BREAKDOWN PRINCIPLES (MANDATORY)
+
+### Single Responsibility Rule
+
+**RULE**: Break down large components into smaller, focused components. Each component should have a single, clear responsibility.
+
+### ❌ WRONG: Monolithic Component
+
+```tsx
+// DON'T DO THIS - Everything in one component
+export const UsersScreen = ({ users, stats, apiKeys }) => {
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [visibleKeys, setVisibleKeys] = useState(new Set());
+  
+  // 50+ lines of column definitions
+  const columns = useMemo(() => [
+    // ... many column definitions
+  ], []);
+  
+  // Multiple handler functions
+  const handleCreateUser = async () => { /* ... */ };
+  const handleCreateApiKey = async () => { /* ... */ };
+  const handleViewUser = () => { /* ... */ };
+  const toggleKeyVisibility = () => { /* ... */ };
+  const copyToClipboard = () => { /* ... */ };
+  const getStatusBadge = () => { /* ... */ };
+  const formatDate = () => { /* ... */ };
+  
+  return (
+    <div className="space-y-6">
+      {/* 200+ lines of JSX with stats, table, dialogs, forms */}
+      {/* Stats cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Inline stats card implementation */}
+      </div>
+      
+      {/* Table */}
+      <Card>
+        {/* Inline table implementation */}
+      </Card>
+      
+      {/* User details dialog */}
+      <Dialog>
+        {/* 100+ lines of dialog content */}
+        {/* API keys section */}
+        <div>
+          {/* 50+ lines of API key management */}
+        </div>
+      </Dialog>
+    </div>
+  );
+};
+```
+
+### ✅ CORRECT: Component Breakdown
+
+```tsx
+// Main screen component - orchestrates smaller components
+export const UsersScreen: React.FC<UsersScreenProps> = ({ users, stats, apiKeys }) => {
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userApiKeys, setUserApiKeys] = useState<ExtendedApiKey[]>([]);
+
+  // Memoized column definitions
+  const userColumns = useMemo<ColumnDef<User>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => <div className="font-medium">{row.getValue('name')}</div>,
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => <div className="text-muted-foreground">{row.getValue('email')}</div>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => <UserActions user={row.original} onView={handleViewUser} />,
+    },
+  ], []);
+
+  const handleViewUser = useCallback((user: User) => {
+    setSelectedUser(user);
+    const keys = apiKeys.filter(key => key.user_id === user.id);
+    setUserApiKeys(keys);
+  }, [apiKeys]);
+
+  const handleCreateApiKey = useCallback(async (userId: string, keyName: string) => {
+    // API call logic
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <PageHeader title="Users" description="Manage API users" />
+      
+      {/* Stats */}
+      <UserStatsCards stats={stats} />
+      
+      {/* Table */}
+      <UsersTable 
+        columns={userColumns}
+        data={users}
+        onRowClick={handleViewUser}
+      />
+      
+      {/* User Details */}
+      <UserDetailsDialog
+        user={selectedUser}
+        apiKeys={userApiKeys}
+        open={!!selectedUser}
+        onOpenChange={() => setSelectedUser(null)}
+        onCreateApiKey={handleCreateApiKey}
+      />
+    </div>
+  );
+};
+```
+
+### 📁 Component File Structure
+
+```
+pages/admin/users/_components/
+├── UsersScreen.tsx              # Main orchestrator (< 100 lines)
+├── UserStatsCards.tsx           # Stats display (< 50 lines)
+├── UsersTable.tsx               # Table wrapper (< 50 lines)
+├── UserDetailsDialog.tsx        # User details modal (< 100 lines)
+├── ApiKeysSection.tsx           # API key management (< 150 lines)
+├── UserActions.tsx              # Action buttons (< 30 lines)
+├── CreateUserForm.tsx           # User creation form (< 80 lines)
+└── columns.tsx                  # Column definitions (< 100 lines)
+```
+
+### 🎯 Component Breakdown Guidelines
+
+#### 1. **Size Limits**
+- **Main Screen Components**: < 150 lines
+- **Feature Components**: < 100 lines  
+- **UI Components**: < 50 lines
+- **Utility Components**: < 30 lines
+
+#### 2. **Responsibility Separation**
+```tsx
+// ✅ GOOD: Each component has one clear purpose
+
+// Stats display only
+const UserStatsCards = ({ stats }) => (
+  <div className="grid gap-4 md:grid-cols-3">
+    {statsConfig.map(stat => (
+      <StatsCard key={stat.title} title={stat.title} value={stat.value} />
+    ))}
+  </div>
+);
+
+// Table wrapper only
+const UsersTable = ({ columns, data, onRowClick }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle>All Users ({data.length})</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <DataTable columns={columns} data={data} onRowClick={onRowClick} />
+    </CardContent>
+  </Card>
+);
+
+// User actions only
+const UserActions = ({ user, onView, onEdit, onDelete }) => (
+  <div className="flex gap-2">
+    <Button size="sm" variant="outline" onClick={() => onView(user)}>
+      <Eye className="h-4 w-4 mr-1" />
+      View
+    </Button>
+    <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
+      <Edit className="h-4 w-4 mr-1" />
+      Edit
+    </Button>
+    <Button size="sm" variant="destructive" onClick={() => onDelete(user)}>
+      <Trash2 className="h-4 w-4 mr-1" />
+      Delete
+    </Button>
+  </div>
+);
+```
+
+#### 3. **State Management**
+```tsx
+// ✅ GOOD: State lives at the appropriate level
+
+// Main component manages overall state
+const UsersScreen = ({ users, stats, apiKeys }) => {
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userApiKeys, setUserApiKeys] = useState([]);
+  
+  // Pass state and handlers down
+  return (
+    <div>
+      <UserDetailsDialog 
+        user={selectedUser}
+        apiKeys={userApiKeys}
+        onClose={() => setSelectedUser(null)}
+      />
+    </div>
+  );
+};
+
+// Child component manages its own internal state
+const ApiKeysSection = ({ user, apiKeys, onCreateApiKey }) => {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  
+  // Internal state for this component only
+  return (
+    <div>
+      {/* Component implementation */}
+    </div>
+  );
+};
+```
+
+#### 4. **Props Interface Design**
+```tsx
+// ✅ GOOD: Clear, focused props
+
+interface UserStatsCardsProps {
+  stats: UserStats;
+}
+
+interface UsersTableProps {
+  columns: ColumnDef<User>[];
+  data: User[];
+  onRowClick: (user: User) => void;
+}
+
+interface UserDetailsDialogProps {
+  user: User | null;
+  apiKeys: ApiKey[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreateApiKey: (userId: string, keyName: string) => Promise<void>;
+}
+
+// ❌ BAD: Too many props, unclear responsibility
+interface MegaComponentProps {
+  users: User[];
+  stats: UserStats;
+  apiKeys: ApiKey[];
+  selectedUser: User | null;
+  isDialogOpen: boolean;
+  searchTerm: string;
+  visibleKeys: Set<string>;
+  newKeyName: string;
+  onUserSelect: (user: User) => void;
+  onCreateUser: () => void;
+  onCreateApiKey: () => void;
+  onToggleVisibility: (id: string) => void;
+  // ... 10+ more props
+}
+```
+
+### 🔄 Refactoring Strategy
+
+#### Step 1: Identify Responsibilities
+- Data display (stats, tables)
+- User interactions (forms, dialogs)
+- Business logic (API calls, validation)
+- UI state management (modals, visibility)
+
+#### Step 2: Extract Components
+```tsx
+// Extract by feature
+<UserStatsCards stats={stats} />
+<UsersTable data={users} onRowClick={handleViewUser} />
+<UserDetailsDialog user={selectedUser} onClose={handleClose} />
+
+// Extract by UI pattern
+<StatsCard title="Users" value={count} />
+<ActionButton icon={Edit} onClick={handleEdit}>Edit</ActionButton>
+<ConfirmationModal title="Delete User" onConfirm={handleDelete} />
+```
+
+#### Step 3: Optimize Imports
+```tsx
+// ✅ GOOD: Import only what you need
+import { UserStatsCards } from './UserStatsCards';
+import { UsersTable } from './UsersTable';
+import { UserDetailsDialog } from './UserDetailsDialog';
+
+// ❌ BAD: Importing everything
+import * as UserComponents from './UserComponents';
+```
+
+### 📋 Component Breakdown Checklist
+
+- [ ] **Single Purpose**: Each component has one clear responsibility
+- [ ] **Size Limit**: Components are under appropriate line limits
+- [ ] **Clear Props**: Props interface is focused and well-defined
+- [ ] **State Location**: State lives at the appropriate component level
+- [ ] **Reusability**: Components can be reused in other contexts
+- [ ] **Testing**: Each component can be tested independently
+- [ ] **Performance**: Proper memoization and optimization
+- [ ] **Maintainability**: Easy to understand and modify
+
+### 🎯 Benefits of Component Breakdown
+
+1. **Easier Testing**: Test each component independently
+2. **Better Performance**: Smaller components re-render less
+3. **Improved Maintainability**: Easier to find and fix issues
+4. **Enhanced Reusability**: Components can be used elsewhere
+5. **Cleaner Code**: Easier to read and understand
+6. **Team Collaboration**: Multiple developers can work on different components
+7. **Debugging**: Easier to isolate issues to specific components
+
+This approach ensures your codebase remains maintainable and scalable as it grows.
