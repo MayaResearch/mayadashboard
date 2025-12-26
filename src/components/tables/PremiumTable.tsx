@@ -11,7 +11,12 @@ interface PremiumUser {
 }
 
 interface SubscriptionData {
+  id: string
   status: string
+  plan_id: string
+  payment_method: string
+  current_start: number | null
+  current_end: number | null
   created_at: number
 }
 
@@ -109,6 +114,7 @@ export function PremiumTable({
   const [isLoading, setIsLoading] = useState(true)
   const [cancelledCount, setCancelledCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [searchValue, setSearchValue] = useState(search)
 
   const fetchSubscriptions = async (forceRefresh = false) => {
     if (forceRefresh) {
@@ -193,10 +199,54 @@ export function PremiumTable({
   }
   const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    window.location.href = buildUrl({ search: searchValue, page: 1 })
+  }
+
+  const clearSearch = () => {
+    setSearchValue('')
+    window.location.href = buildUrl({ search: '', page: 1 })
+  }
+
   return (
     <div className="space-y-4">
-      {/* Refresh Button */}
-      <div className="flex items-center justify-end">
+      {/* Search and Refresh */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Search Bar */}
+        <form onSubmit={handleSearch} className="flex-1 max-w-md">
+          <div className="relative">
+            <svg 
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              strokeWidth="1.5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder="Search by device ID or name..."
+              className="w-full pl-10 pr-10 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+            />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </form>
+
+        {/* Refresh Button */}
         <button
           onClick={() => fetchSubscriptions(true)}
           disabled={isRefreshing}
@@ -231,20 +281,20 @@ export function PremiumTable({
                     <SortIcon column="device_id" />
                   </a>
                 </th>
-                <th className="px-4 py-3 text-left">
-                  <a href={buildSortUrl('device_name')} className="flex items-center font-medium text-muted-foreground uppercase tracking-wider text-xs hover:text-foreground">
-                    Device Name
-                    <SortIcon column="device_name" />
-                  </a>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
+                  Device Name
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
-                  Subscription
+                  Status
                 </th>
-                <th className="px-4 py-3 text-left">
-                  <a href={buildSortUrl('created_at')} className="flex items-center font-medium text-muted-foreground uppercase tracking-wider text-xs hover:text-foreground">
-                    Created
-                    <SortIcon column="created_at" />
-                  </a>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
+                  Subscription ID
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
+                  Plan ID
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">
+                  Valid Until
                 </th>
                 <th className="px-4 py-3 text-left">
                   <a href={buildSortUrl('updated_at')} className="flex items-center font-medium text-muted-foreground uppercase tracking-wider text-xs hover:text-foreground">
@@ -257,9 +307,9 @@ export function PremiumTable({
             <tbody className="divide-y divide-border">
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => {
-                  const created = formatDate(user.created_at)
                   const updated = formatDate(user.updated_at)
                   const subscription = subscriptions[user.device_id]
+                  const validUntil = subscription?.current_end ? formatDate(subscription.current_end) : null
                   
                   return (
                     <tr key={user.device_id} className="hover:bg-muted/30 transition-colors">
@@ -285,8 +335,34 @@ export function PremiumTable({
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm">{created.date}</p>
-                        <p className="text-xs text-muted-foreground">{created.time}</p>
+                        {isLoading ? (
+                          <Shimmer />
+                        ) : subscription?.id ? (
+                          <span className="font-mono text-xs text-muted-foreground">{subscription.id.replace('sub_', '')}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isLoading ? (
+                          <Shimmer />
+                        ) : subscription?.plan_id ? (
+                          <span className="font-mono text-xs text-muted-foreground">{subscription.plan_id.replace('plan_', '')}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isLoading ? (
+                          <Shimmer />
+                        ) : validUntil ? (
+                          <div>
+                            <p className="text-sm">{validUntil.date}</p>
+                            <p className="text-xs text-muted-foreground">{validUntil.time}</p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm">{updated.date}</p>
@@ -297,7 +373,7 @@ export function PremiumTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                     No premium users found
                   </td>
                 </tr>

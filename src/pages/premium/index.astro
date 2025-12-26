@@ -47,45 +47,50 @@ const order = (url.searchParams.get('order') as 'asc' | 'desc') || 'desc';
 const search = url.searchParams.get('search') || '';
 const statusFilter = url.searchParams.get('status') || 'all'; // all, active, cancelled
 
-// Build query
-const conditions: string[] = ["user_type = 'premium_user'"];
+// Build query - Join devices with device_map to get device names
+const conditions: string[] = ["d.user_type = 'premium_user'"];
 const args: any[] = [];
 
 // Date filter
 const fromTimestamp = getDateRangeTimestamp(dateRange);
 if (fromTimestamp) {
-  conditions.push('created_at >= ?');
+  conditions.push('d.created_at >= ?');
   args.push(fromTimestamp);
 }
 
-// Search filter
+// Search filter - search on device_id from devices table and device_name from device_map
 if (search) {
-  conditions.push('(device_id LIKE ? OR device_name LIKE ?)');
+  conditions.push('(d.device_id LIKE ? OR dm.device_name LIKE ?)');
   args.push(`%${search}%`, `%${search}%`);
 }
 
-// Get total count
+// Get total count with join
 const countResult = await db.execute({
-  sql: `SELECT COUNT(*) as count FROM devices WHERE ${conditions.join(' AND ')}`,
+  sql: `SELECT COUNT(*) as count FROM devices d LEFT JOIN device_map dm ON d.device_id = dm.device_id WHERE ${conditions.join(' AND ')}`,
   args
 });
 const total = countResult.rows[0].count as number;
 
-// Validate sort column
-const validSortColumns = ['device_id', 'device_name', 'created_at', 'updated_at', 'images_limit'];
-const sortColumn = validSortColumns.includes(sort) ? sort : 'updated_at';
+// Validate sort column - prefix with table alias
+const validSortColumns = ['device_id', 'created_at', 'updated_at', 'images_limit'];
+const sortColumn = validSortColumns.includes(sort) ? `d.${sort}` : 'd.updated_at';
 const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
 
-// Fetch paginated data - NO subscription fetch blocking here!
+// Fetch paginated data with join - NO subscription fetch blocking here!
 const offset = (page - 1) * pageSize;
 const result = await db.execute({
-  sql: `SELECT * FROM devices WHERE ${conditions.join(' AND ')} ORDER BY ${sortColumn} ${sortOrder} LIMIT ? OFFSET ?`,
+  sql: `SELECT d.device_id, d.created_at, d.updated_at, d.user_type, dm.device_name 
+        FROM devices d 
+        LEFT JOIN device_map dm ON d.device_id = dm.device_id 
+        WHERE ${conditions.join(' AND ')} 
+        ORDER BY ${sortColumn} ${sortOrder} 
+        LIMIT ? OFFSET ?`,
   args: [...args, pageSize, offset]
 });
 
 const premiumUsers = result.rows.map((row: any) => ({
   device_id: row.device_id,
-  device_name: row.device_name,
+  device_name: row.device_name || null,
   created_at: row.created_at,
   updated_at: row.updated_at,
 }));
